@@ -1,0 +1,22 @@
+1000 REM one loop
+1010 FOR i=1 to 10:PRINT i;:NEXT i:PRINT
+1020 REM implicit NEXT
+1030 FOR i=1 to 10:PRINT i;:NEXT:PRINT
+1100 REM nested loop
+1110 FOR i=1 to 5
+1120 FOR j=1 to 4
+1130 PRINT i*j,
+1140 NEXT j
+1150 PRINT
+1160 NEXT i
+1200 REM NEXT comma
+1210 FOR i=1 to 4
+1220 FOR j=1 to 3
+1230 PRINT j;
+1240 NEXT j,i
+1250 PRINT
+1300 REM exit a loop and reuse the variable
+1310 FOR i=1 to 5
+1320 IF i=3 THEN 1400
+1330 NEXT
+1400 FOR j=1 to 4:FOR i=1 to 3:PRINT"("i","j")";:NEXT i:PRINT:NEXT j

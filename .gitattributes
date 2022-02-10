@@ -1,0 +1,5 @@
+*.co_ binary
+*.com binary
+*.ex_ binary
+*.exe binary
+*.obj binary

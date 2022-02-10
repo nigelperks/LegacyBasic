@@ -1,0 +1,10 @@
+10 DATA 59.1,"  message  ",house,  houses  ,  3.14
+20 READ A:PRINT A
+30 READ A$:PRINT ">"A$"<"
+40 READ A$:PRINT ">"A$"<"
+50 READ A$:PRINT ">"A$"<"
+60 READ A$:PRINT ">"A$"<"
+70 READ X$:PRINT X$
+80 DATA "FINAL"
+90 RESTORE
+100 READ A:PRINT A
