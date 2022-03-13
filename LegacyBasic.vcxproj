@@ -161,6 +161,7 @@
     <ClInclude Include="CuTest.h" />
     <ClInclude Include="emit.h" />
     <ClInclude Include="lexer.h" />
+    <ClInclude Include="os.h" />
     <ClInclude Include="parse.h" />
     <ClInclude Include="run.h" />
     <ClInclude Include="source.h" />

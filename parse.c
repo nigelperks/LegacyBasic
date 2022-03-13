@@ -14,6 +14,7 @@
 #include "emit.h"
 #include "bcode.h"
 #include "builtin.h"
+#include "os.h"
 
 typedef struct {
   LEX* lex;
@@ -478,12 +479,12 @@ static void print_statement(PARSER* parser) {
 
   while (!eos(parser->lex)) {
     if (lex_token(parser->lex) == TOK_ID) {
-      if (_stricmp(lex_word(parser->lex), "SPC") == 0) {
+      if (__STRICMP(lex_word(parser->lex), "SPC") == 0) {
         print_builtin(parser, B_PRINT_SPC);
         sep = 0;
         continue;
       }
-      if (_stricmp(lex_word(parser->lex), "TAB") == 0) {
+      if (__STRICMP(lex_word(parser->lex), "TAB") == 0) {
         print_builtin(parser, B_PRINT_TAB);
         sep = 0;
         continue;

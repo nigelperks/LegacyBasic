@@ -7,6 +7,7 @@
 #include <assert.h>
 #include "stringlist.h"
 #include "utils.h"
+#include "os.h"
 
 void init_stringlist(STRINGLIST* p) {
   p->strings = NULL;
@@ -69,7 +70,7 @@ unsigned stringlist_append(STRINGLIST* list, const char* s) {
 unsigned stringlist_entry_case_insensitive(STRINGLIST* list, const char* s) {
   assert(list != NULL);
   for (unsigned i = 0; i < list->used; i++) {
-    if (_stricmp(list->strings[i], s) == 0)
+    if (__STRICMP(list->strings[i], s) == 0)
       return i;
   }
   return stringlist_append(list, s);
