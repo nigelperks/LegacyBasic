@@ -5,6 +5,7 @@
 #include <string.h>
 #include <assert.h>
 #include "token.h"
+#include "os.h"
 
 static const KEYWORD keywords[] = {
   { "AND", 3, TOK_AND },
@@ -40,7 +41,7 @@ int identifier_token(const char* s) {
   assert(s != NULL);
 
   for (const KEYWORD* p = keywords; p->name; p++) {
-    if (_stricmp(p->name, s) == 0)
+    if (STRICMP(p->name, s) == 0)
       return p->token;
   }
   return TOK_ID;
@@ -50,7 +51,7 @@ const KEYWORD* keyword_prefix(const char* s) {
   assert(s != NULL);
 
   for (const KEYWORD* p = keywords; p->name; p++) {
-    if (_strnicmp(p->name, s, p->len) == 0)
+    if (STRNICMP(p->name, s, p->len) == 0)
       return p;
   }
   return NULL;

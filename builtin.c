@@ -5,6 +5,7 @@
 #include "builtin.h"
 #include "bcode.h"
 #include "utils.h"
+#include "os.h"
 
 BUILTIN builtins[] = {
   { "ABS",    TYPE_NUM, "n",   B_ABS },
@@ -34,7 +35,7 @@ BUILTIN builtins[] = {
 
 const BUILTIN* builtin(const char* s) {
   for (int i = 0; i < sizeof builtins / sizeof builtins[0]; i++) {
-    if (_stricmp(builtins[i].name, s) == 0)
+    if (STRICMP(builtins[i].name, s) == 0)
       return &builtins[i];
   }
 
