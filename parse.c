@@ -479,12 +479,12 @@ static void print_statement(PARSER* parser) {
 
   while (!eos(parser->lex)) {
     if (lex_token(parser->lex) == TOK_ID) {
-      if (__STRICMP(lex_word(parser->lex), "SPC") == 0) {
+      if (STRICMP(lex_word(parser->lex), "SPC") == 0) {
         print_builtin(parser, B_PRINT_SPC);
         sep = 0;
         continue;
       }
-      if (__STRICMP(lex_word(parser->lex), "TAB") == 0) {
+      if (STRICMP(lex_word(parser->lex), "TAB") == 0) {
         print_builtin(parser, B_PRINT_TAB);
         sep = 0;
         continue;

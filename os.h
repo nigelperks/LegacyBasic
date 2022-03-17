@@ -6,11 +6,11 @@
 #define OS_H
 
 #ifdef LINUX
-#define __STRICMP strcasecmp
-#define __STRNICMP strncasecmp
+#define STRICMP strcasecmp
+#define STRNICMP strncasecmp
 #else
-#define __STRICMP _stricmp
-#define __STRNICMP _strnicmp
+#define STRICMP _stricmp
+#define STRNICMP _strnicmp
 #endif
 
 #endif // OS_H

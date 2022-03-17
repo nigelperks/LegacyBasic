@@ -35,7 +35,7 @@ BUILTIN builtins[] = {
 
 const BUILTIN* builtin(const char* s) {
   for (int i = 0; i < sizeof builtins / sizeof builtins[0]; i++) {
-    if (__STRICMP(builtins[i].name, s) == 0)
+    if (STRICMP(builtins[i].name, s) == 0)
       return &builtins[i];
   }
 
