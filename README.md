@@ -64,4 +64,8 @@ To run system tests on several test files:
 
 specifying the executable interpreter to be tested.
 
+CONTRIBUTIONS
+-------------
+Linux support by yuppox.
+
 Nigel Perks, 2022.

@@ -1,6 +1,6 @@
 // Legacy BASIC
 // Utility types and functions.
-// Copyright (c) 2021-2 Nigel Perks
+// Copyright (c) 2022 Nigel Perks
 
 #ifndef OS_H
 #define OS_H

@@ -8,11 +8,11 @@
 #include <stdarg.h>
 #include <math.h>
 #include <time.h>
+#include <limits.h>
 #include <assert.h>
 #include "run.h"
 #include "builtin.h"
 #include "utils.h"
-#include "limits.h"
 
 struct numvar {
   unsigned name;
