@@ -648,8 +648,11 @@ static void dimension_string(VM* vm, unsigned name, unsigned short dimensions) {
 static PAREN_SYMBOL* dimension_string_auto(VM* vm, unsigned name, unsigned short dimensions) {
   unsigned max[MAX_DIMENSIONS];
 
-  for (unsigned i = 0; i < dimensions; i++)
-    max[i] = 10;
+  for (unsigned i = 0; i < dimensions; i++) {
+    max[i] = pop_unsigned(vm);
+    if (max[i] < 10)
+      max[i] = 10;
+  }
 
   PAREN_SYMBOL* sym = insert_string_array(&vm->paren, name, vm->array_base, dimensions, max);
   if (sym == NULL)

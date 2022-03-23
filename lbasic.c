@@ -13,7 +13,7 @@
 #include "utils.h"
 
 #define TITLE "Legacy BASIC"
-#define VERSION "1.0.1"
+#define VERSION "1.0.2"
 #define COPYRIGHT "Copyright (c) 2022 Nigel Perks"
 
 #ifdef UNIT_TEST

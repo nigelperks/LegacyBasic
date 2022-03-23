@@ -8,6 +8,7 @@
 300 REM auto-dimension string
 310 PRINT ">"A$(5)"<"
 320 A$(10)="HELLO":PRINT A$(10)
+330 PRINT ">"B$(11)"<";">"B$(11)"<"
 400 REM explicit dimension
 410 DIM name$(30),age(30)
 420 K=30
