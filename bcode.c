@@ -168,7 +168,10 @@ void print_binst(const BCODE* p, unsigned j, FILE* fp) {
       fprintf(fp, "%g", i->u.num);
       break;
     case BF_STR:
-      fprintf(fp, "\"%s\"", i->u.str);
+      if (i->u.str)
+        fprintf(fp, "\"%s\"", i->u.str);
+      else
+        fputs("null", fp);
       break;
     case BF_VAR:
       fputs(stringlist_item(&p->names, i->u.name), fp);
