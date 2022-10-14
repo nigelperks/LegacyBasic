@@ -767,22 +767,7 @@ static char* convert(const char* string, double *val);
 static void execute(VM* vm) {
   assert(vm->pc < vm->bc->used);
 
-  char buf[256];
-  size_t sz;
-  unsigned long u, v;
-  int j;
-  char* s;
-  const char* S;
-  int c;
-  char* t;
-  const BINST* i = vm->bc->inst + vm->pc;
-  double x;
-  unsigned k;
-  int logic1, logic2;
-  struct for_loop * f;
-  int var;
-  int si;
-  PAREN_SYMBOL* sym;
+  const BINST* const i = vm->bc->inst + vm->pc;
 
   switch (i->op) {
     case B_NOP:
@@ -799,8 +784,8 @@ static void execute(VM* vm) {
     case B_PUSH_NUM:
       push(vm, i->u.num);
       break;
-    case B_GET_SIMPLE_NUM:
-      j = lookup_numvar_name(vm, i->u.name);
+    case B_GET_SIMPLE_NUM: {
+      int j = lookup_numvar_name(vm, i->u.name);
       if (j < 0) {
         if (vm->strict_variables)
           run_error(vm, "Variable not found: %s\n", stringlist_item(&vm->bc->names, i->u.name));
@@ -809,11 +794,12 @@ static void execute(VM* vm) {
       else
         push(vm, vm->numvars.vars[j].val);
       break;
+    }
     case B_SET_SIMPLE_NUM:
       set_numvar_name(vm, i->u.name, pop(vm));
       break;
-    case B_DIM_NUM:
-      sym = lookup_paren_name(&vm->paren, i->u.param.name);
+    case B_DIM_NUM: {
+      PAREN_SYMBOL* sym = lookup_paren_name(&vm->paren, i->u.param.name);
       if (sym) {
         check_paren_kind(vm, sym, PK_ARRAY);
         if (sym->type != TYPE_NUM)
@@ -823,8 +809,9 @@ static void execute(VM* vm) {
       else
         dimension_numeric(vm, i->u.param.name, i->u.param.params);
       break;
-    case B_GET_PAREN_NUM:
-      sym = lookup_paren_name(&vm->paren, i->u.param.name);
+    }
+    case B_GET_PAREN_NUM: {
+      PAREN_SYMBOL* sym = lookup_paren_name(&vm->paren, i->u.param.name);
       if (sym == NULL) {
         sym = dimension_numeric_auto(vm, i->u.param.name, i->u.param.params);
         push(vm, 0);
@@ -844,70 +831,85 @@ static void execute(VM* vm) {
         }
       }
       break;
+    }
     case B_SET_ARRAY_NUM:
       set_numeric_element_name(vm, i->u.param.name, i->u.param.params, pop(vm));
       break;
     case B_NEG:
       push(vm, - pop(vm));
       break;
-    case B_ADD:
-      x = pop(vm);
+    case B_ADD: {
+      double x = pop(vm);
       push(vm, pop(vm) + x);
       break;
-    case B_SUB:
-      x = pop(vm);
+    }
+    case B_SUB: {
+      double x = pop(vm);
       push(vm, pop(vm) - x);
       break;
-    case B_MUL:
-      x = pop(vm);
+    }
+    case B_MUL: {
+      double x = pop(vm);
       push(vm, pop(vm) * x);
       break;
-    case B_DIV:
-      x = pop(vm);
+    }
+    case B_DIV: {
+      double x = pop(vm);
       push(vm, pop(vm) / x);
       break;
-    case B_POW:
-      x = pop(vm);
+    }
+    case B_POW: {
+      double x = pop(vm);
       push(vm, pow(pop(vm), x));
       break;
-    case B_EQ_NUM:
-      x = pop(vm);
+    }
+    case B_EQ_NUM: {
+      double x = pop(vm);
       push_logic(vm, pop(vm) == x);
       break;
-    case B_LT_NUM:
-      x = pop(vm);
+    }
+    case B_LT_NUM: {
+      double x = pop(vm);
       push_logic(vm, pop(vm) < x);
       break;
-    case B_GT_NUM:
-      x = pop(vm);
+    }
+    case B_GT_NUM: {
+      double x = pop(vm);
       push_logic(vm, pop(vm) > x);
       break;
-    case B_NE_NUM:
-      x = pop(vm);
+    }
+    case B_NE_NUM: {
+      double x = pop(vm);
       push_logic(vm, pop(vm) != x);
       break;
-    case B_LE_NUM:
-      x = pop(vm);
+    }
+    case B_LE_NUM: {
+      double x = pop(vm);
       push_logic(vm, pop(vm) <= x);
       break;
-    case B_GE_NUM:
-      x = pop(vm);
+    }
+    case B_GE_NUM: {
+      double x = pop(vm);
       push_logic(vm, pop(vm) >= x);
       break;
-    case B_OR:
-      logic2 = pop_logic(vm);
-      logic1 = pop_logic(vm);
+    }
+    case B_OR: {
+      int logic2 = pop_logic(vm);
+      int logic1 = pop_logic(vm);
       push(vm, logic1 | logic2);
       break;
-    case B_AND:
-      logic2 = pop_logic(vm);
-      logic1 = pop_logic(vm);
+    }
+    case B_AND: {
+      int logic2 = pop_logic(vm);
+      int logic1 = pop_logic(vm);
       push(vm, logic1 & logic2);
       break;
-    case B_NOT:
-      logic1 = pop_logic(vm);
-      push(vm, ~logic1);
+    }
+    case B_NOT: {
+      int logic = pop_logic(vm);
+      push(vm, ~logic);
       break;
+    }
     // string
     case B_PUSH_STR:
       push_str(vm, i->u.str);
@@ -915,8 +917,8 @@ static void execute(VM* vm) {
     case B_SET_SIMPLE_STR:
       set_strvar_name(vm, i->u.name, pop_str(vm));
       break;
-    case B_GET_SIMPLE_STR:
-      j = lookup_strvar_name(vm, i->u.name);
+    case B_GET_SIMPLE_STR: {
+      int j = lookup_strvar_name(vm, i->u.name);
       if (j < 0) {
         if (vm->strict_variables)
           run_error(vm, "Variable not found: %s\n", stringlist_item(&vm->bc->names, i->u.name));
@@ -925,8 +927,9 @@ static void execute(VM* vm) {
       else
         push_str(vm, vm->strvars.vars[j].val);
       break;
-    case B_DIM_STR:
-      sym = lookup_paren_name(&vm->paren, i->u.param.name);
+    }
+    case B_DIM_STR: {
+      PAREN_SYMBOL* sym = lookup_paren_name(&vm->paren, i->u.param.name);
       if (sym) {
         check_paren_kind(vm, sym, PK_ARRAY);
         if (sym->type != TYPE_STR)
@@ -936,8 +939,9 @@ static void execute(VM* vm) {
       else
         dimension_string(vm, i->u.param.name, i->u.param.params);
       break;
-    case B_GET_PAREN_STR:
-      sym = lookup_paren_name(&vm->paren, i->u.param.name);
+    }
+    case B_GET_PAREN_STR: {
+      PAREN_SYMBOL* sym = lookup_paren_name(&vm->paren, i->u.param.name);
       if (sym == NULL) {
         sym = dimension_string_auto(vm, i->u.param.name, i->u.param.params);
         push_str(vm, "");
@@ -957,6 +961,7 @@ static void execute(VM* vm) {
         }
       }
       break;
+    }
     case B_SET_ARRAY_STR:
       set_string_element_name(vm, i->u.param.name, i->u.param.params, pop_str(vm));
       break;
@@ -978,10 +983,11 @@ static void execute(VM* vm) {
     case B_GE_STR:
       push_logic(vm, compare_strings(vm) >= 0);
       break;
-    case B_CONCAT:
-      t = pop_str(vm);
-      s = pop_str(vm);
-      sz = strlen(s) + strlen(t);
+    case B_CONCAT: {
+      char* t = pop_str(vm);
+      char* s = pop_str(vm);
+      size_t sz = strlen(s) + strlen(t);
+      char buf[256];
       if (sz + 1 > sizeof buf)
         run_error(vm, "concatenated string would be too long: %lu characters\n", (unsigned long)sz);
       strcpy(buf, s);
@@ -990,6 +996,7 @@ static void execute(VM* vm) {
       efree(s);
       efree(t);
       break;
+    }
     // control flow
     case B_END:
       vm->pc = vm->bc->used;
@@ -1021,17 +1028,18 @@ static void execute(VM* vm) {
       vm->pc = vm->retstack[vm->rsp].pc;
       vm->source_line = vm->retstack[vm->rsp].source_line;
       break;
-    case B_FOR:
+    case B_FOR: {
       if (vm->trace_for)
         dump_for(vm, "FOR");
-      si = find_for(vm, i->u.name);
+      int si = find_for(vm, i->u.name);
       if (si >= 0) {
         if (vm->strict_for)
           run_error(vm, "already inside FOR loop controlled by this variable: %s\n", numvar_name(vm, vm->for_stack[si].var));
+        assert(vm->for_sp > 0);
         if (si != vm->for_sp - 1) {
           // bring inner loop to top of stack, for NEXT with no variable
           struct for_loop inner = vm->for_stack[si];
-          for (k = si; k < vm->for_sp - 1; k++)
+          for (unsigned k = si; k < vm->for_sp - 1; k++)
             vm->for_stack[k] = vm->for_stack[k + 1];
           vm->for_stack[vm->for_sp - 1] = inner;
           si = vm->for_sp - 1;
@@ -1044,7 +1052,7 @@ static void execute(VM* vm) {
         }
         si = vm->for_sp++;
       }
-      f = &vm->for_stack[si];
+      struct for_loop * f = &vm->for_stack[si];
       f->var = lookup_numvar_name(vm, i->u.name);
       if (f->var < 0)
         f->var = insert_numvar_name(vm, i->u.name);
@@ -1056,14 +1064,15 @@ static void execute(VM* vm) {
       if (vm->trace_for)
         dump_for_stack(vm, "final stack");
       break;
-    case B_NEXT_VAR:
+    }
+    case B_NEXT_VAR: {
       if (vm->trace_for)
         dump_for(vm, "NEXT-VARIABLE");
       if (vm->for_sp == 0)
         run_error(vm, "NEXT without FOR\n");
-      si = vm->for_sp - 1;
-      f = &vm->for_stack[si];
-      var = lookup_numvar_name(vm, i->u.name);
+      int si = vm->for_sp - 1;
+      struct for_loop * f = &vm->for_stack[si];
+      int var = lookup_numvar_name(vm, i->u.name);
       if (var != f->var) {
         if (vm->strict_for) {
           const char* for_name = numvar_name(vm, f->var);
@@ -1075,12 +1084,12 @@ static void execute(VM* vm) {
           run_error(vm, "NEXT without FOR: %s\n", bcode_name(vm->bc, i->u.name));
         f = &vm->for_stack[si];
       }
-      x = vm->numvars.vars[f->var].val + f->step;
+      double x = vm->numvars.vars[f->var].val + f->step;
       if (f->step > 0 && x > f->limit || f->step < 0 && x < f->limit) {
         // remove FOR stack index si
         assert(vm->for_sp > 0);
         vm->for_sp--;
-        for (k = si; k < vm->for_sp; k++)
+        for (unsigned k = si; k < vm->for_sp; k++)
           vm->for_stack[k] = vm->for_stack[k + 1];
       }
       else {
@@ -1090,14 +1099,15 @@ static void execute(VM* vm) {
       if (vm->trace_for)
         dump_for_stack(vm, "final stack");
       break;
-    case B_NEXT_IMP:
+    }
+    case B_NEXT_IMP: {
       if (vm->trace_for)
         dump_for(vm, "NEXT-IMPLICIT");
       if (vm->for_sp == 0)
         run_error(vm, "NEXT without FOR\n");
-      si = vm->for_sp - 1;
-      f = &vm->for_stack[si];
-      x = vm->numvars.vars[f->var].val + f->step;
+      int si = vm->for_sp - 1;
+      struct for_loop * f = &vm->for_stack[si];
+      double x = vm->numvars.vars[f->var].val + f->step;
       if (f->step > 0 && x > f->limit || f->step < 0 && x < f->limit)
         vm->for_sp--;
       else {
@@ -1107,8 +1117,9 @@ static void execute(VM* vm) {
       if (vm->trace_for)
         dump_for_stack(vm, "final stack");
       break;
-    case B_DEF:
-      sym = lookup_paren_name(&vm->paren, i->u.param.name);
+    }
+    case B_DEF: {
+      PAREN_SYMBOL* sym = lookup_paren_name(&vm->paren, i->u.param.name);
       if (sym) {
         check_paren_kind(vm, sym, PK_DEF);
         replace_def(sym, i->u.param.params, vm->source_line, vm->pc);
@@ -1121,14 +1132,15 @@ static void execute(VM* vm) {
         vm->pc++;
       } while (vm->pc < vm->bc->used && vm->bc->inst[vm->pc].op != B_END_DEF);
       break;
+    }
     case B_PARAM:
       run_error(vm, "internal error: run into parameter\n");
       break;
     case B_END_DEF:
       end_def(vm);
       break;
-    case B_ON_GOTO:
-      x = pop(vm);
+    case B_ON_GOTO: {
+      double x = pop(vm);
       if (x != floor(x))
         run_error(vm, "ON value is invalid: %g\n", x);
       if (x < 1 || x > i->u.count) {
@@ -1137,11 +1149,12 @@ static void execute(VM* vm) {
         vm->pc += i->u.count + 1;
         return;
       }
-      k = vm->pc + (unsigned) x;
+      unsigned k = vm->pc + (unsigned) x;
       if (k >= vm->bc->used || vm->bc->inst[k].op != B_ON_LINE)
         run_error(vm, "internal error: ON-LINE expected\n");
       vm->pc = find_basic_line(vm, vm->bc->inst[k].u.line);
       return;
+    }
     case B_IF_THEN: // IF ... THEN statements  -- skip to next line if condition false
       if (!pop(vm)) {
         do {
@@ -1155,13 +1168,14 @@ static void execute(VM* vm) {
       putchar('\n');
       vm->col = 1;
       break;
-    case B_PRINT_SPC:
-      k = pop_unsigned(vm);
+    case B_PRINT_SPC: {
+      unsigned k = pop_unsigned(vm);
       while (k--)
         putchar(' '), vm->col++;
       break;
-    case B_PRINT_TAB:
-      k = pop_unsigned(vm);
+    }
+    case B_PRINT_TAB: {
+      unsigned k = pop_unsigned(vm);
       if (k < vm->col) {
         putchar('\n');
         vm->col = 1;
@@ -1169,6 +1183,7 @@ static void execute(VM* vm) {
       while (vm->col < k)
         putchar(' '), vm->col++;
       break;
+    }
     case B_PRINT_COMMA:
       do {
         putchar(' '), vm->col++;
@@ -1177,9 +1192,9 @@ static void execute(VM* vm) {
     case B_PRINT_NUM:
       vm->col += printf(" %g ", pop(vm));
       break;
-    case B_PRINT_STR:
-      s = pop_str(vm);
-      for (S = s; *S; S++) {
+    case B_PRINT_STR: {
+      char* s = pop_str(vm);
+      for (const char* S = s; *S; S++) {
         putchar(*S);
         if (*S == '\n')
           vm->col = 1;
@@ -1188,6 +1203,7 @@ static void execute(VM* vm) {
       }
       efree(s);
       break;
+    }
     // input
     case B_INPUT_BUF:
       if (i->u.str)
@@ -1202,13 +1218,16 @@ static void execute(VM* vm) {
       vm->inp = 0;
       vm->input_pc = vm->pc;
       break;
-    case B_INPUT_END:
+    case B_INPUT_END: {
+      int c;
       while ((c = vm->input[vm->inp]) == ' ' || c == '\t' || c == '\n' || c == '\r')
         vm->inp++;
       if (c != '\0')
         puts("* Extra input was discarded *");
       break;
-    case B_INPUT_SEP:
+    }
+    case B_INPUT_SEP: {
+      int c;
       while ((c = vm->input[vm->inp]) == ' ' || c == '\t')
         vm->inp++;
       if (c == ',') {
@@ -1218,8 +1237,10 @@ static void execute(VM* vm) {
       puts("* More input items are expected *");
       vm->pc = vm->input_pc;
       return;
-    case B_INPUT_NUM:
-      t = convert(vm->input + vm->inp, &x);
+    }
+    case B_INPUT_NUM: {
+      double x;
+      const char* t = convert(vm->input + vm->inp, &x);
       if (t != NULL && (*t == '\0' || *t == '\n' || *t == ',')) {
         set_numeric_name(vm, i->u.param.name, i->u.param.params, x);
         vm->inp = (int) (t - vm->input);
@@ -1228,59 +1249,69 @@ static void execute(VM* vm) {
       puts("* Invalid input *");
       vm->pc = vm->input_pc;
       return;
-    case B_INPUT_STR:
-      s = vm->input + vm->inp;
+    }
+    case B_INPUT_STR: {
+      const char* s = vm->input + vm->inp;
+      int c;
       while ((c = vm->input[vm->inp]) != '\0' && c != '\n' && c != ',')
         vm->inp++;
       vm->input[vm->inp] = '\0';
-      s = estrdup(s);
-      set_string_name(vm, i->u.param.name, i->u.param.params, s);
+      char* t = estrdup(s);
+      set_string_name(vm, i->u.param.name, i->u.param.params, t);
       vm->input[vm->inp] = c;
       break;
-    case B_INPUT_LINE:
-      s = strchr(vm->input, '\n');
+    }
+    case B_INPUT_LINE: {
+      char* s = strchr(vm->input, '\n');
       if (s)
         *s = '\0';
       s = estrdup(vm->input);
       set_string_name(vm, i->u.param.name, i->u.param.params, s);
       break;
+    }
     // inline data
     case B_DATA:
       break;
-    case B_READ_NUM:
-      S = find_data(vm);
-      t = convert(S, &x);
+    case B_READ_NUM: {
+      const char* S = find_data(vm);
+      double x;
+      const char* t = convert(S, &x);
       if (t == NULL || *t != '\0')
         run_error(vm, "numeric data expected: %s\n", S);
       set_numeric_name(vm, i->u.param.name, i->u.param.params, x);
       break;
-    case B_READ_STR:
-      S = find_data(vm);
+    }
+    case B_READ_STR: {
+      const char* S = find_data(vm);
       set_string_name(vm, i->u.param.name, i->u.param.params, estrdup(S));
       break;
+    }
     case B_RESTORE:
       vm->data = 0;
       break;
     // builtins
-    case B_ASC:
-      s = pop_str(vm);
+    case B_ASC: {
+      char* s = pop_str(vm);
       push(vm, s[0]);
       efree(s);
       break;
+    }
     case B_ABS:
       push(vm, fabs(pop(vm)));
       break;
     case B_ATN:
       push(vm, atan(pop(vm)));
       break;
-    case B_CHR:
-      x = pop(vm);
+    case B_CHR: {
+      double x = pop(vm);
       if (x < 0 || x > 255 || x != floor(x))
         run_error(vm, "invalid character code: %g\n", x);
+      char buf[2];
       buf[0] = (char) x;
       buf[1] = '\0';
       push_str(vm, buf);
       break;
+    }
     case B_COS:
       push(vm, cos(pop(vm)));
       break;
@@ -1290,12 +1321,13 @@ static void execute(VM* vm) {
     case B_INT:
       push(vm, floor(pop(vm)));
       break;
-    case B_LEFT:
-      s = pop_str(vm);
-      u = pop_unsigned(vm);
-      sz = strlen(s);
+    case B_LEFT: {
+      char* s = pop_str(vm);
+      unsigned u = pop_unsigned(vm);
+      size_t sz = strlen(s);
       if (u > sz)
         u = (unsigned long)sz;
+      char buf[256];
       if (u + 1 > sizeof buf)
         run_error(vm, STRING_TOO_LONG);
       strncpy(buf, s, u);
@@ -1303,26 +1335,30 @@ static void execute(VM* vm) {
       push_str(vm, buf);
       efree(s);
       break;
-    case B_LEN:
-      s = pop_str(vm);
+    }
+    case B_LEN: {
+      char* s = pop_str(vm);
       push(vm, (double) strlen(s));
       efree(s);
       break;
-    case B_LOG:
-      x = pop(vm);
+    }
+    case B_LOG: {
+      double x = pop(vm);
       if (x <= 0)
         run_error(vm, "invalid logarithm\n");
       push(vm, log(x));
       break;
-    case B_MID3:
-      s = pop_str(vm);
-      v = pop_unsigned(vm);
-      u = pop_unsigned(vm);
-      sz = strlen(s);
+    }
+    case B_MID3: {
+      char* s = pop_str(vm);
+      unsigned v = pop_unsigned(vm);
+      unsigned u = pop_unsigned(vm);
+      size_t sz = strlen(s);
       if (u < 1 || u > sz)
         run_error(vm, "string index out of range\n");
       if (v > sz - u + 1)
         v = (unsigned long)(sz - u + 1);
+      char buf[256];
       if (v + 1 > sizeof buf)
         run_error(vm, STRING_TOO_LONG);
       strncpy(buf, s + u - 1, v);
@@ -1330,17 +1366,21 @@ static void execute(VM* vm) {
       push_str(vm, buf);
       efree(s);
       break;
-    case B_STR:
-      x = pop(vm);
+    }
+    case B_STR: {
+      double x = pop(vm);
+      char buf[64];
       sprintf(buf, "%g", x);
       push_str(vm, buf);
       break;
-    case B_RIGHT:
-      s = pop_str(vm);
-      u = pop_unsigned(vm);
-      sz = strlen(s);
+    }
+    case B_RIGHT: {
+      char* s = pop_str(vm);
+      unsigned u = pop_unsigned(vm);
+      size_t sz = strlen(s);
       if (u > sz)
         u = (unsigned long)sz;
+      char buf[256];
       if (u + 1 > sizeof buf)
         run_error(vm, STRING_TOO_LONG);
       strncpy(buf, s + sz - u, u);
@@ -1348,21 +1388,25 @@ static void execute(VM* vm) {
       push_str(vm, buf);
       efree(s);
       break;
-    case B_RND:
+    }
+    case B_RND: {
       pop(vm); // dummy argument
+      double x;
       do {
         x = (double) rand() / RAND_MAX;
       } while (x >= 1);
       push(vm, x);
       break;
-    case B_SGN:
-      x = pop(vm);
+    }
+    case B_SGN: {
+      double x = pop(vm);
       if (x < 0)
         x = -1;
       else if (x > 0)
         x = 1;
       push(vm, x);
       break;
+    }
     case B_SIN:
       push(vm, sin(pop(vm)));
       break;
@@ -1372,14 +1416,16 @@ static void execute(VM* vm) {
     case B_TAN:
       push(vm, tan(pop(vm)));
       break;
-    case B_VAL:
-      s = pop_str(vm);
-      t = convert(s, &x);
+    case B_VAL: {
+      char* s = pop_str(vm);
+      double x;
+      const char* t = convert(s, &x);
       if (t == NULL || *t != '\0')
         run_error(vm, "invalid number: %s\n", s);
       efree(s);
       push(vm, x);
       break;
+    }
     // unknown opcode
     default:
       fputs("UNKNOWN OPCODE:\n", stderr);
