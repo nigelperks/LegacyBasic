@@ -18,3 +18,6 @@
 510 DIM age(4,5)
 520 age(4,5)=99:age(0,0)=-33
 530 PRINT age(0,0),age(4,5),age(3,2)
+600 REM auto-dimension by assignment
+610 K(3)=22:PRINT K(3)
+620 K$(4,1)="HELLO":PRINT K$(4,1)

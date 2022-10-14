@@ -568,10 +568,13 @@ static void set_strvar_name(VM* vm, unsigned name, char* s) {
   vm->strvars.vars[j].val = s;
 }
 
-static double* numeric_element(VM* vm, struct numeric_array * p, unsigned name, unsigned dimensions) {
-  unsigned indexes[MAX_DIMENSIONS];
+static void pop_indexes(VM* vm, unsigned* indexes, unsigned dimensions) {
+  assert(dimensions <= MAX_DIMENSIONS);
   for (unsigned i = 0; i < dimensions; i++)
     indexes[i] = pop_unsigned(vm);
+}
+
+static double* numeric_element(VM* vm, struct numeric_array * p, unsigned name, unsigned dimensions, unsigned* indexes) {
   double* addr = NULL;
   if (!compute_numeric_element(p, dimensions, indexes, &addr))
     run_error(vm, "array indexes invalid or out of range: %s\n", bcode_name(vm->bc, name));
@@ -588,11 +591,11 @@ static void dimension_numeric(VM* vm, unsigned name, unsigned short dimensions) 
     run_error(vm, "invalid dimensions: %s\n", bcode_name(vm->bc, name));
 }
 
-static PAREN_SYMBOL* dimension_numeric_auto(VM* vm, unsigned name, unsigned short dimensions) {
+static PAREN_SYMBOL* dimension_numeric_auto(VM* vm, unsigned name, unsigned short dimensions, unsigned* indexes) {
   unsigned max[MAX_DIMENSIONS];
 
   for (unsigned i = 0; i < dimensions; i++) {
-    max[i] = pop_unsigned(vm);
+    max[i] = indexes[i];
     if (max[i] < 10)
       max[i] = 10;
   }
@@ -617,12 +620,16 @@ static void redimension_numeric(VM* vm, PAREN_SYMBOL* sym, unsigned dimensions) 
 }
 
 static void set_numeric_element_name(VM* vm, unsigned name, unsigned dimensions, double val) {
+  unsigned indexes[MAX_DIMENSIONS];
+  pop_indexes(vm, indexes, dimensions);
+
   PAREN_SYMBOL* sym = lookup_paren_name(&vm->paren, name);
   if (sym == NULL)
-    sym = dimension_numeric_auto(vm, name, dimensions);
+    sym = dimension_numeric_auto(vm, name, dimensions, indexes);
   else if (sym->kind != PK_ARRAY || sym->type != TYPE_NUM)
     run_error(vm, "not a numeric array: %s\n", bcode_name(vm->bc, name));
-  *numeric_element(vm, sym->u.numarr, name, dimensions) = val;
+
+  *numeric_element(vm, sym->u.numarr, name, dimensions, indexes) = val;
 }
 
 static void set_numeric_name(VM* vm, unsigned name, unsigned dimensions, double val) {
@@ -633,23 +640,17 @@ static void set_numeric_name(VM* vm, unsigned name, unsigned dimensions, double 
 }
 
 static void dimension_string(VM* vm, unsigned name, unsigned short dimensions) {
-  unsigned max[MAX_DIMENSIONS];
-
-  for (unsigned i = 0; i < dimensions; i++) {
-    max[i] = pop_unsigned(vm);
-    if (max[i] < 10)
-      max[i] = 10;
-  }
-
-  if (insert_string_array(&vm->paren, name, vm->array_base, dimensions, max) == NULL)
+  unsigned indexes[MAX_DIMENSIONS];
+  pop_indexes(vm, indexes, dimensions);
+  if (insert_string_array(&vm->paren, name, vm->array_base, dimensions, indexes) == NULL)
     run_error(vm, "invalid dimensions: %s\n", bcode_name(vm->bc, name));
 }
 
-static PAREN_SYMBOL* dimension_string_auto(VM* vm, unsigned name, unsigned short dimensions) {
+static PAREN_SYMBOL* dimension_string_auto(VM* vm, unsigned name, unsigned short dimensions, unsigned* indexes) {
   unsigned max[MAX_DIMENSIONS];
 
   for (unsigned i = 0; i < dimensions; i++) {
-    max[i] = pop_unsigned(vm);
+    max[i] = indexes[i];
     if (max[i] < 10)
       max[i] = 10;
   }
@@ -673,10 +674,7 @@ static void redimension_string(VM* vm, PAREN_SYMBOL* sym, unsigned dimensions) {
     run_error(vm, "invalid dimensions: %s\n", bcode_name(vm->bc, sym->name));
 }
 
-static char* * string_element(VM* vm, struct string_array * p, unsigned name, unsigned dimensions) {
-  unsigned indexes[MAX_DIMENSIONS];
-  for (unsigned i = 0; i < dimensions; i++)
-    indexes[i] = pop_unsigned(vm);
+static char* * string_element(VM* vm, struct string_array * p, unsigned name, unsigned dimensions, unsigned *indexes) {
   char* * addr = NULL;
   if (!compute_string_element(p, dimensions, indexes, &addr))
     run_error(vm, "array indexes invalid or out of range: %s\n", bcode_name(vm->bc, name));
@@ -684,19 +682,22 @@ static char* * string_element(VM* vm, struct string_array * p, unsigned name, un
   return addr;
 }
 
-static void set_string_element(VM* vm, struct string_array * p, unsigned name, unsigned dimensions, char* val) {
-  char* *addr = string_element(vm, p, name, dimensions);
+static void set_string_element(VM* vm, struct string_array * p, unsigned name, unsigned dimensions, unsigned* indexes, char* val) {
+  char* *addr = string_element(vm, p, name, dimensions, indexes);
   efree(*addr);
   *addr = val;
 }
 
 static void set_string_element_name(VM* vm, unsigned name, unsigned dimensions, char* val) {
+  unsigned indexes[MAX_DIMENSIONS];
+  pop_indexes(vm, indexes, dimensions);
+
   PAREN_SYMBOL* sym = lookup_paren_name(&vm->paren, name);
   if (sym == NULL)
-    sym = dimension_string_auto(vm, name, dimensions);
+    sym = dimension_string_auto(vm, name, dimensions, indexes);
   if (sym->kind != PK_ARRAY || sym->type != TYPE_STR)
     run_error(vm, "not a string array: %s\n", bcode_name(vm->bc, name));
-  set_string_element(vm, sym->u.strarr, name, dimensions, val);
+  set_string_element(vm, sym->u.strarr, name, dimensions, indexes, val);
 }
 
 static void set_string_name(VM* vm, unsigned name, unsigned dimensions, char* val) {
@@ -813,22 +814,26 @@ static void execute(VM* vm) {
     case B_GET_PAREN_NUM: {
       PAREN_SYMBOL* sym = lookup_paren_name(&vm->paren, i->u.param.name);
       if (sym == NULL) {
-        sym = dimension_numeric_auto(vm, i->u.param.name, i->u.param.params);
+        unsigned indexes[MAX_DIMENSIONS];
+        pop_indexes(vm, indexes, i->u.param.params);
+        sym = dimension_numeric_auto(vm, i->u.param.name, i->u.param.params, indexes);
         push(vm, 0);
+        break;
       }
-      else {
-        if (sym->type != TYPE_NUM)
-          run_error(vm, "numeric array or function was expected: %s\n", bcode_name(vm->bc, i->u.param.name));
-        switch (sym->kind) {
-          case PK_ARRAY:
-            push(vm, *numeric_element(vm, sym->u.numarr, i->u.param.name, i->u.param.params));
-            break;
-          case PK_DEF:
-            call_def(vm, sym->u.def, i->u.param.name, i->u.param.params);
-            break;
-          default:
-            fatal("internal error: unexpected kind of paren symbol\n");
+      if (sym->type != TYPE_NUM)
+        run_error(vm, "numeric array or function was expected: %s\n", bcode_name(vm->bc, i->u.param.name));
+      switch (sym->kind) {
+        case PK_ARRAY: {
+          unsigned indexes[MAX_DIMENSIONS];
+          pop_indexes(vm, indexes, i->u.param.params);
+          push(vm, *numeric_element(vm, sym->u.numarr, i->u.param.name, i->u.param.params, indexes));
+          break;
         }
+        case PK_DEF:
+          call_def(vm, sym->u.def, i->u.param.name, i->u.param.params);
+          break;
+        default:
+          fatal("internal error: unexpected kind of paren symbol\n");
       }
       break;
     }
@@ -943,22 +948,26 @@ static void execute(VM* vm) {
     case B_GET_PAREN_STR: {
       PAREN_SYMBOL* sym = lookup_paren_name(&vm->paren, i->u.param.name);
       if (sym == NULL) {
-        sym = dimension_string_auto(vm, i->u.param.name, i->u.param.params);
+        unsigned indexes[MAX_DIMENSIONS];
+        pop_indexes(vm, indexes, i->u.param.params);
+        sym = dimension_string_auto(vm, i->u.param.name, i->u.param.params, indexes);
         push_str(vm, "");
+        break;
       }
-      else {
-        if (sym->type != TYPE_STR)
-          run_error(vm, "string array or function was expected: %s\n", bcode_name(vm->bc, i->u.param.name));
-        switch (sym->kind) {
-          case PK_ARRAY:
-            push_str(vm, *string_element(vm, sym->u.strarr, i->u.param.name, i->u.param.params));
-            break;
-          case PK_DEF:
-            call_def(vm, sym->u.def, i->u.param.name, i->u.param.params);
-            break;
-          default:
-            fatal("internal error: unexpected kind of paren symbol\n");
+      if (sym->type != TYPE_STR)
+        run_error(vm, "string array or function was expected: %s\n", bcode_name(vm->bc, i->u.param.name));
+      switch (sym->kind) {
+        case PK_ARRAY: {
+          unsigned indexes[MAX_DIMENSIONS];
+          pop_indexes(vm, indexes, i->u.param.params);
+          push_str(vm, *string_element(vm, sym->u.strarr, i->u.param.name, i->u.param.params, indexes));
+          break;
         }
+        case PK_DEF:
+          call_def(vm, sym->u.def, i->u.param.name, i->u.param.params);
+          break;
+        default:
+          fatal("internal error: unexpected kind of paren symbol\n");
       }
       break;
     }
