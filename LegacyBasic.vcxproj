@@ -29,26 +29,26 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
-    <PlatformToolset>v142</PlatformToolset>
+    <PlatformToolset>v143</PlatformToolset>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
-    <PlatformToolset>v142</PlatformToolset>
+    <PlatformToolset>v143</PlatformToolset>
     <WholeProgramOptimization>true</WholeProgramOptimization>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
-    <PlatformToolset>v142</PlatformToolset>
+    <PlatformToolset>v143</PlatformToolset>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
-    <PlatformToolset>v142</PlatformToolset>
+    <PlatformToolset>v143</PlatformToolset>
     <WholeProgramOptimization>true</WholeProgramOptimization>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
@@ -142,12 +142,18 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="arrays.c" />
     <ClCompile Include="bcode.c" />
     <ClCompile Include="builtin.c" />
     <ClCompile Include="CuTest.c" />
+    <ClCompile Include="def.c" />
     <ClCompile Include="emit.c" />
+    <ClCompile Include="interactive.c" />
+    <ClCompile Include="interrupt.c" />
+    <ClCompile Include="keyword.c" />
     <ClCompile Include="lbasic.c" />
     <ClCompile Include="lexer.c" />
+    <ClCompile Include="paren.c" />
     <ClCompile Include="parse.c" />
     <ClCompile Include="run.c" />
     <ClCompile Include="source.c" />
@@ -156,12 +162,18 @@
     <ClCompile Include="utils.c" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="arrays.h" />
     <ClInclude Include="bcode.h" />
     <ClInclude Include="builtin.h" />
     <ClInclude Include="CuTest.h" />
+    <ClInclude Include="def.h" />
     <ClInclude Include="emit.h" />
+    <ClInclude Include="interactive.h" />
+    <ClInclude Include="interrupt.h" />
+    <ClInclude Include="keyword.h" />
     <ClInclude Include="lexer.h" />
     <ClInclude Include="os.h" />
+    <ClInclude Include="paren.h" />
     <ClInclude Include="parse.h" />
     <ClInclude Include="run.h" />
     <ClInclude Include="source.h" />

@@ -13,6 +13,8 @@ static const struct {
   { "NOP", BF_IMPLICIT },
   // source
   { "LINE", BF_SOURCE_LINE },
+  // whole environment
+  { "CLEAR", BF_IMPLICIT },
   // number
   { "PUSH-NUM", BF_NUM },
   { "GET-SIMPLE-NUM", BF_VAR },
@@ -106,19 +108,16 @@ static const struct {
   { "VAL", BF_IMPLICIT },
 };
 
-BCODE* new_bcode(const SOURCE* source) {
+BCODE* new_bcode(void) {
   BCODE* p = emalloc(sizeof *p);
-  p->source = source;
   p->inst = NULL;
   p->allocated = 0;
   p->used = 0;
-  init_stringlist(&p->names);
   return p;
 }
 
 void delete_bcode(BCODE* p) {
   if (p) {
-    deinit_stringlist(&p->names);
     for (unsigned i = 0; i < p->used; i++) {
       if (p->inst[i].op < sizeof ops / sizeof ops[0] && ops[p->inst[i].op].format == BF_STR)
         efree(p->inst[i].u.str);
@@ -141,14 +140,14 @@ BINST* bcode_next(BCODE* p, unsigned op) {
   return i;
 }
 
-void print_bcode(const BCODE* p, FILE* fp) {
+void print_bcode(const BCODE* p, const SOURCE* source, const STRINGLIST* names, FILE* fp) {
   assert(p != NULL);
   assert(fp != NULL);
   for (unsigned i = 0; i < p->used; i++)
-    print_binst(p, i, fp);
+    print_binst(p, i, source, names, fp);
 }
 
-void print_binst(const BCODE* p, unsigned j, FILE* fp) {
+void print_binst(const BCODE* p, unsigned j, const SOURCE* source, const STRINGLIST* names, FILE* fp) {
   assert(p != NULL);
   assert(j < p->used);
   assert(fp != NULL);
@@ -159,7 +158,9 @@ void print_binst(const BCODE* p, unsigned j, FILE* fp) {
     case BF_IMPLICIT:
       break;
     case BF_SOURCE_LINE:
-      fprintf(fp, "%u: %u %s", i->u.line, source_linenum(p->source, i->u.line), source_text(p->source, i->u.line));
+      fprintf(fp, "%u", i->u.line);
+      if (source)
+        fprintf(fp, ": %u %s", source_linenum(source, i->u.line), source_text(source, i->u.line));
       break;
     case BF_BASIC_LINE:
       fprintf(fp, "%u", i->u.line);
@@ -174,10 +175,10 @@ void print_binst(const BCODE* p, unsigned j, FILE* fp) {
         fputs("null", fp);
       break;
     case BF_VAR:
-      fputs(stringlist_item(&p->names, i->u.name), fp);
+      fputs(stringlist_item(names, i->u.name), fp);
       break;
     case BF_PARAM:
-      fprintf(fp, "%s, %u", stringlist_item(&p->names, i->u.param.name), i->u.param.params);
+      fprintf(fp, "%s, %u", stringlist_item(names, i->u.param.name), i->u.param.params);
       break;
     case BF_COUNT:
       fprintf(fp, "%u", i->u.count);
@@ -188,19 +189,11 @@ void print_binst(const BCODE* p, unsigned j, FILE* fp) {
   putc('\n', fp);
 }
 
-unsigned bcode_name_entry(BCODE* p, const char* name) {
-  return stringlist_entry_case_insensitive(&p->names, name);
-}
-
-const char* bcode_name(const BCODE* p, unsigned i) {
-  return stringlist_item(&p->names, i);
-}
-
-bool bcode_find_basic_line(const BCODE* p, unsigned basic_line, unsigned *source_line) {
+bool bcode_find_basic_line(const BCODE* p, unsigned basic_line, const SOURCE* source, unsigned *source_line) {
   assert(p != NULL);
   for (unsigned i = 0; i < p->used; i++) {
     if (p->inst[i].op == B_LINE) {
-      if (source_linenum(p->source, p->inst[i].u.line) == basic_line) {
+      if (source_linenum(source, p->inst[i].u.line) == basic_line) {
         *source_line = i;
         return true;
       }
@@ -216,18 +209,17 @@ bool bcode_find_basic_line(const BCODE* p, unsigned basic_line, unsigned *source
 static void test_bcode(CuTest* tc) {
   static const char CODE[] = "10 PRINT\n20 PRINT\n";
   SOURCE* const src = load_source_string(CODE, "test");
+  STRINGLIST* names = new_stringlist();
   BCODE* p;
   BINST* i;
   unsigned j;
   bool succ;
 
-  p = new_bcode(src);
+  p = new_bcode();
   CuAssertPtrNotNull(tc, p);
-  CuAssertTrue(tc, p->source == src);
   CuAssertPtrEquals(tc, NULL, p->inst);
   CuAssertIntEquals(tc, 0, p->allocated);
   CuAssertIntEquals(tc, 0, p->used);
-  CuAssertIntEquals(tc, 0, stringlist_count(&p->names));
 
   i = bcode_next(p, B_ADD);
   CuAssertPtrNotNull(tc, i);
@@ -236,37 +228,36 @@ static void test_bcode(CuTest* tc) {
   CuAssertIntEquals(tc, 1, p->used);
   CuAssertIntEquals(tc, B_ADD, p->inst[0].op);
 
-  j = bcode_name_entry(p, "Cab$");
+  j = name_entry(names, "Cab$");
   CuAssertIntEquals(tc, 0, j);
-  CuAssertIntEquals(tc, 1, stringlist_count(&p->names));
-  CuAssertStrEquals(tc, "Cab$", stringlist_item(&p->names, 0));
-  CuAssertStrEquals(tc, "Cab$", bcode_name(p, 0));
+  CuAssertIntEquals(tc, 1, stringlist_count(names));
+  CuAssertStrEquals(tc, "Cab$", stringlist_item(names, 0));
 
-  j = bcode_name_entry(p, "Lurg");
+  j = name_entry(names, "Lurg");
   CuAssertIntEquals(tc, 1, j);
-  CuAssertIntEquals(tc, 2, stringlist_count(&p->names));
-  CuAssertStrEquals(tc, "Lurg", stringlist_item(&p->names, 1));
-  CuAssertStrEquals(tc, "Lurg", bcode_name(p, 1));
+  CuAssertIntEquals(tc, 2, stringlist_count(names));
+  CuAssertStrEquals(tc, "Lurg", stringlist_item(names, 1));
 
-  j = bcode_name_entry(p, "CAB$");
+  j = name_entry(names, "CAB$");
   CuAssertIntEquals(tc, 0, j);
 
-  j = bcode_name_entry(p, "cab$");
+  j = name_entry(names, "cab$");
   CuAssertIntEquals(tc, 0, j);
 
-  succ = bcode_find_basic_line(p, 1000, &j);
+  succ = bcode_find_basic_line(p, 1000, src, &j);
   CuAssertIntEquals(tc, false, succ);
 
   i = bcode_next(p, B_LINE);
   CuAssertPtrNotNull(tc, i);
   CuAssertIntEquals(tc, 2, p->used);
   i->u.line = 1;
-  succ = bcode_find_basic_line(p, 20, &j);
+  succ = bcode_find_basic_line(p, 20, src, &j);
   CuAssertIntEquals(tc, true, succ);
   CuAssertIntEquals(tc, 1, j);
 
   delete_bcode(p);
   delete_source(src);
+  delete_stringlist(names);
 }
 
 CuSuite* bcode_test_suite(void) {
@@ -274,6 +265,5 @@ CuSuite* bcode_test_suite(void) {
   SUITE_ADD_TEST(suite, test_bcode);
   return suite;
 }
-
 
 #endif

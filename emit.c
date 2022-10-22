@@ -61,7 +61,7 @@ void patch_count(BCODE* bcode, unsigned index, unsigned count) {
 static void test_emit(CuTest* tc) {
   static const char CODE[] = "1 REM\n";
   SOURCE* source = load_source_string(CODE, "test");
-  BCODE* bcode = new_bcode(source);
+  BCODE* bcode = new_bcode();
   CuAssertIntEquals(tc, 0, bcode->used);
 
   emit(bcode, B_ADD);

@@ -67,7 +67,7 @@ unsigned stringlist_append(STRINGLIST* list, const char* s) {
   return i;
 }
 
-unsigned stringlist_entry_case_insensitive(STRINGLIST* list, const char* s) {
+unsigned name_entry(STRINGLIST* list, const char* s) {
   assert(list != NULL);
   for (unsigned i = 0; i < list->used; i++) {
     if (STRICMP(list->strings[i], s) == 0)
@@ -135,11 +135,11 @@ static void test_append(CuTest* tc) {
   CuAssertIntEquals(tc, 1, stringlist_count(&list));
   CuAssertStrEquals(tc, "ShoeMaker", stringlist_item(&list, 0));
 
-  CuAssertIntEquals(tc, 0, stringlist_entry_case_insensitive(&list, "SHOEMAKER"));
+  CuAssertIntEquals(tc, 0, name_entry(&list, "SHOEMAKER"));
   CuAssertIntEquals(tc, 1, list.used);
   CuAssertIntEquals(tc, 1, stringlist_count(&list));
 
-  CuAssertIntEquals(tc, 1, stringlist_entry_case_insensitive(&list, "Elephant"));
+  CuAssertIntEquals(tc, 1, name_entry(&list, "Elephant"));
   CuAssertIntEquals(tc, 2, list.used);
   CuAssertIntEquals(tc, 2, stringlist_count(&list));
   CuAssertStrEquals(tc, "Elephant", stringlist_item(&list, 1));

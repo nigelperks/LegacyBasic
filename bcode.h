@@ -15,6 +15,8 @@ enum {
   B_NOP,
   // source
   B_LINE,
+  // whole environment
+  B_CLEAR,
   // numbers
   B_PUSH_NUM,
   B_GET_SIMPLE_NUM,
@@ -135,20 +137,16 @@ typedef struct {
 } BINST;
 
 typedef struct {
-  const SOURCE* source;
   BINST* inst;
   unsigned allocated;
   unsigned used;
-  STRINGLIST names;
 } BCODE;
 
-BCODE* new_bcode(const SOURCE*);
+BCODE* new_bcode(void);
 void delete_bcode(BCODE*);
 BINST* bcode_next(BCODE*, unsigned op);
-unsigned bcode_name_entry(BCODE*, const char* name);
-const char* bcode_name(const BCODE*, unsigned entry);
 
-void print_bcode(const BCODE*, FILE*);
-void print_binst(const BCODE*, unsigned index, FILE*);
+void print_bcode(const BCODE*, const SOURCE*, const STRINGLIST* names, FILE*);
+void print_binst(const BCODE*, unsigned index, const SOURCE*, const STRINGLIST* names, FILE*);
 
-bool bcode_find_basic_line(const BCODE*, unsigned basic_line, unsigned *source_line);
+bool bcode_find_basic_line(const BCODE*, unsigned basic_line, const SOURCE*, unsigned *source_line);

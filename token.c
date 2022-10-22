@@ -7,8 +7,9 @@
 #include "token.h"
 #include "os.h"
 
-static const KEYWORD keywords[] = {
+const KEYWORD basic_keywords[] = {
   { "AND", 3, TOK_AND },
+  { "CLEAR", 5, TOK_CLEAR },
   { "DATA", 4, TOK_DATA },
   { "DEF", 3, TOK_DEF },
   { "DIM", 3, TOK_DIM },
@@ -38,35 +39,19 @@ static const KEYWORD keywords[] = {
 };
 
 int identifier_token(const char* s) {
-  assert(s != NULL);
-
-  for (const KEYWORD* p = keywords; p->name; p++) {
-    if (STRICMP(p->name, s) == 0)
-      return p->token;
-  }
-  return TOK_ID;
+  return keyword_token(basic_keywords, s, TOK_ID);
 }
 
-const KEYWORD* keyword_prefix(const char* s) {
-  assert(s != NULL);
-
-  for (const KEYWORD* p = keywords; p->name; p++) {
-    if (STRNICMP(p->name, s, p->len) == 0)
-      return p;
-  }
-  return NULL;
+const KEYWORD* token_prefix(const char* s) {
+  return keyword_prefix(basic_keywords, s);
 }
 
 const char* token_name(int t) {
-  for (const KEYWORD* p = keywords; p->name; p++) {
-    if (p->token == t)
-      return p->name;
-  }
-
   const char* s = NULL;
   switch (t) {
     case '\n': s = "end of line"; break;
     case TOK_NONE: s = "no token"; break;
+    case TOK_ERROR: s = "invalid token"; break;
     case TOK_EOF: s = "end of file"; break;
     case TOK_ID: s = "name"; break;
     case TOK_NUM: s = "number"; break;
@@ -74,6 +59,7 @@ const char* token_name(int t) {
     case TOK_NE: s = "<>"; break;
     case TOK_LE: s = "<="; break;
     case TOK_GE: s = ">="; break;
+    default: s = keyword_name(basic_keywords, t); break;
   }
   return s;
 }
@@ -106,27 +92,27 @@ static void test_identifier_token(CuTest* tc) {
   CuAssertIntEquals(tc, TOK_TO, identifier_token("TO"));
 }
 
-static void test_keyword_prefix(CuTest* tc) {
+static void test_token_prefix(CuTest* tc) {
   const KEYWORD * k;
 
-  k = keyword_prefix("");
+  k = token_prefix("");
   CuAssertTrue(tc, k == NULL);
 
-  k = keyword_prefix("AN");
+  k = token_prefix("AN");
   CuAssertTrue(tc, k == NULL);
 
-  k = keyword_prefix("ANA");
+  k = token_prefix("ANA");
   CuAssertTrue(tc, k == NULL);
 
-  k = keyword_prefix("AND");
+  k = token_prefix("AND");
   CuAssertPtrNotNull(tc, k);
   CuAssertIntEquals(tc, TOK_AND, k->token);
 
-  k = keyword_prefix("FOR");
+  k = token_prefix("FOR");
   CuAssertPtrNotNull(tc, k);
   CuAssertIntEquals(tc, TOK_FOR, k->token);
 
-  k = keyword_prefix("FORM");
+  k = token_prefix("FORM");
   CuAssertPtrNotNull(tc, k);
   CuAssertIntEquals(tc, TOK_FOR, k->token);
   CuAssertIntEquals(tc, 3, k->len);
@@ -142,7 +128,7 @@ static void test_token_name(CuTest* tc) {
 CuSuite* token_test_suite(void) {
   CuSuite* suite = CuSuiteNew();
   SUITE_ADD_TEST(suite, test_identifier_token);
-  SUITE_ADD_TEST(suite, test_keyword_prefix);
+  SUITE_ADD_TEST(suite, test_token_prefix);
   SUITE_ADD_TEST(suite, test_token_name);
   return suite;
 }

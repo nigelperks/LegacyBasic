@@ -1,14 +1,19 @@
-LEGACY BASIC
-============
+# LEGACY BASIC
 
 Legacy Basic is an interpreter for the legacy of 1970s-style microcomputer BASIC
 programs, especially text-based games.
 
-To use:
+To run a BASIC program in a file:
 
-    LegacyBasic.exe game.bas
+    LegacyBasic.exe game.bas       (Windows)
+    legacyBasic game.bas           (Linux)
 
-where game.bas is the BASIC source file.
+To use BASIC interactively (immediate mode), run:
+
+    LegacyBasic.exe                (Windows)
+    legacyBasic                    (Linux)
+
+with no BASIC file name.
 
 I found target programs at:
 
@@ -25,8 +30,53 @@ LETA=BANDC meaning LET A = B AND C, use the --keywords-anywhere option.
 
 To get full help on all the options, use --help-full.
 
-REFERENCES
-----------
+## IMMEDIATE MODE (INTERACTIVE)
+
+When LegacyBasic is run with no BASIC source file specified,
+immediate mode is entered.
+Most BASIC statements can be used interactively.
+Assignments to variables and arrays are persistent.
+DEF definitions last only within one command line: that is, as long as their code exists.
+Use BYE to return to the operating system.
+
+When code is running in interactive mode, CTRL-C should return to
+the BASIC prompt, rather than exiting the interpreter (tested on Windows and Ubuntu).
+
+Enter a program line interactively by typing a line number:
+
+    10 PRINT "HELLO! ";:GOTO 10
+
+There is no EDIT command or line editing: retype a line to replace it.
+
+Immediate mode commands are:
+
+    BYE
+    LIST [start-end]
+    LOAD "prog.bas"
+    NEW
+    RUN
+    SAVE "prog.bas"
+
+
+### Example
+
+    > a$="Hello!"
+    > ?a$
+    Hello!
+    > dim k(27)
+    > input k(13):print k(13)
+    ? 12.3
+     12.3
+    > for cent = 0 to 100 step 10:print cent, int((cent*9/5)+32):next
+     0       32
+    ...
+    > def double(x)=2*x:?double(1.3),double(-3)
+     2.6     -6
+    > bye
+
+
+## REFERENCES
+
 John G. KEMENY and Thomas E. KURTZ, "Back to BASIC", 1985.
 
     The inventors of BASIC narrate its origin at Dartmouth College and argue
@@ -44,8 +94,8 @@ David H. Ahl, "Basic Computer Games: Microcomputer Edition", 1978.
 
 David H. Ahl, "More Basic Computer Games", 1979.
 
-TECHNICAL DETAILS
------------------
+## TECHNICAL DETAILS
+
 Legacy Basic parses the source file from beginning to end, translating it into
 an intermediate code. So any syntax errors or unsupported constructs are found
 up front, not in the middle of a run. The intermediate code targets a stack-
@@ -64,8 +114,12 @@ To run system tests on several test files:
 
 specifying the executable interpreter to be tested.
 
-CONTRIBUTIONS
--------------
-Linux support by yuppox.
+## CONTRIBUTIONS
+
+Original Linux support by yuppox.
+
+## BUG REPORTS
+
+Bug reports are welcome to the email address in the git history.
 
 Nigel Perks, 2022.

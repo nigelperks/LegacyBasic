@@ -10,322 +10,45 @@
 #include <time.h>
 #include <limits.h>
 #include <assert.h>
+#include <setjmp.h>
+#include <signal.h>
 #include "run.h"
-#include "builtin.h"
+#include "paren.h"
 #include "utils.h"
+#include "interrupt.h"
 
-struct numvar {
-  unsigned name;
-  double val;
-};
-
-#define MAX_NUM_VAR (64)
-
-typedef struct {
-  struct numvar vars[MAX_NUM_VAR];
-  unsigned count;
-} NUMVARS;
-
-struct strvar {
-  unsigned name;
-  char* val;
-};
-
-#define MAX_STR_VAR (32)
-
-typedef struct {
-  struct strvar vars[MAX_STR_VAR];
-  unsigned count;
-} STRVARS;
-
-#define MAX_DIMENSIONS (2)
-
-#define MAX_ELEMENTS (64 * 1024)
-
-static bool compute_total_elements(unsigned base, unsigned dimensions, unsigned max[], unsigned *elements) {
-  *elements = 1;
-  for (unsigned i = 0; i < dimensions; i++) {
-    if (max[i] < base)
-      return false;
-    unsigned size = max[i] - base + 1;
-    if (size > MAX_ELEMENTS / *elements)
-      return false;
-    *elements *= size;
-  }
-  return true;
+ENV* new_environment(void) {
+  ENV* env = emalloc(sizeof *env);
+  env->names = new_stringlist();
+  env->numvars.count = 0;
+  env->strvars.count = 0;
+  init_paren_symbols(&env->paren);
+  return env;
 }
 
-struct array_size {
-  unsigned short base;
-  unsigned short dimensions;
-  unsigned short max[MAX_DIMENSIONS];
-  unsigned elements;
-};
-
-static bool init_array_size(struct array_size * p, unsigned base, unsigned dimensions, unsigned max[], unsigned elements) {
-  if (dimensions < 1 || dimensions > MAX_DIMENSIONS)
-    return false;
-
-  p->base = base;
-  p->dimensions = dimensions;
-  for (unsigned i = 0; i < dimensions; i++)
-    p->max[i] = max[i];
-  p->elements = elements;
-  return true;
-}
-
-static bool compute_element_offset(const struct array_size * p, unsigned dimensions, unsigned indexes[], unsigned *offset) {
-  if (dimensions != p->dimensions)
-    return false;
-  for (unsigned i = 0; i < dimensions; i++) {
-    if (indexes[i] < p->base || indexes[i] > p->max[i])
-      return false;
-  }
-  switch (dimensions) {
-    case 1:
-      *offset = indexes[0] - p->base;
-      break;
-    case 2: {
-      unsigned size1 = p->max[1] - p->base + 1;
-      unsigned base1 = (indexes[0] - p->base) * size1;
-      *offset = base1 + indexes[1] - p->base;
-      break;
-    }
-    default:
-      fatal("internal error: compute_numeric_offset: unsupported number of dimensions\n");
-  }
-  return true;
-}
-
-struct numeric_array {
-  struct array_size size;
-  double val[0];
-};
-
-static void delete_numeric_array(struct numeric_array * p) {
-  efree(p);
-}
-
-static struct numeric_array * new_numeric_array(unsigned base, unsigned dimensions, unsigned max[]) {
-  unsigned elements;
-  if (!compute_total_elements(base, dimensions, max, &elements))
-    return NULL;
-  struct numeric_array * p = ecalloc(1, sizeof *p + elements * sizeof p->val[0]);
-  if (!init_array_size(&p->size, base, dimensions, max, elements)) {
-    delete_numeric_array(p);
-    return NULL;
-  }
-  return p;
-}
-
-static bool compute_numeric_element(struct numeric_array * p, unsigned dimensions, unsigned indexes[], double* *addr) {
-  unsigned offset;
-  if (compute_element_offset(&p->size, dimensions, indexes, &offset)) {
-    *addr = p->val + offset;
-    return true;
-  }
-  return false;
-}
-
-struct string_array {
-  struct array_size size;
-  char* val[0];
-};
-
-static void delete_string_array(struct string_array * p) {
-  if (p) {
-    for (unsigned i = 0; i < p->size.elements; i++)
-      efree(p->val[i]);
-    efree(p);
+void delete_environment(ENV* env) {
+  if (env) {
+    for (unsigned i = 0; i < env->strvars.count; i++)
+      efree(env->strvars.vars[i].val);
+    deinit_paren_symbols(&env->paren);
+    delete_stringlist(env->names);
+    efree(env);
   }
 }
 
-static struct string_array * new_string_array(unsigned base, unsigned dimensions, unsigned max[]) {
-  unsigned elements;
-  if (!compute_total_elements(base, dimensions, max, &elements))
-    return NULL;
-  struct string_array * p = ecalloc(1, sizeof *p + elements * sizeof p->val[0]);
-  if (!init_array_size(&p->size, base, dimensions, max, elements)) {
-    delete_string_array(p);
-    return NULL;
-  }
-  return p;
+void clear_code_dependent_environment(ENV* env) {
+  assert(env != NULL);
+  delete_defs(&env->paren);
 }
 
-static bool compute_string_element(struct string_array * p, unsigned dimensions, unsigned indexes[], char* * *addr) {
-  unsigned offset;
-  if (compute_element_offset(&p->size, dimensions, indexes, &offset)) {
-    *addr = p->val + offset;
-    return true;
-  }
-  return false;
-}
-
-struct def {
-  unsigned params;
-  unsigned source_line;
-  unsigned pc;
-};
-
-static struct def * new_def(unsigned params, unsigned source_line, unsigned pc) {
-  struct def * p = emalloc(sizeof *p);
-  p->params = params;
-  p->source_line = source_line;
-  p->pc = pc;
-  return p;
-}
-
-static void delete_def(struct def * def) {
-  efree(def);
-}
-
-enum { PK_ARRAY, PK_DEF, PK_BUILTIN };
-
-static const char* paren_kind(int k) {
-  static const char* names[] = {
-    "array",
-    "user-defined function",
-    "built-in function"
-  };
-
-  assert(k >= 0 && k < sizeof names / sizeof names[0]);
-
-  return names[k];
-}
-
-typedef struct {
-  unsigned name;
-  short type;
-  short kind;
-  union {
-    struct numeric_array * numarr;
-    struct string_array * strarr;
-    struct def * def;
-  } u;
-} PAREN_SYMBOL;
-
-static void deinit_paren_symbol(PAREN_SYMBOL* sym) {
-  assert(sym != NULL);
-  switch (sym->kind) {
-    case PK_ARRAY:
-      switch (sym->type) {
-        case TYPE_NUM: delete_numeric_array(sym->u.numarr); break;
-        case TYPE_STR: delete_string_array(sym->u.strarr); break;
-      }
-      break;
-    case PK_DEF:
-      delete_def(sym->u.def);
-      break;
-  }
-}
-
-typedef struct {
-  PAREN_SYMBOL* sym;
-  unsigned allocated;
-  unsigned used;
-} PAREN_SYMBOLS;
-
-static void init_paren_symbols(PAREN_SYMBOLS* p) {
-  p->sym = NULL;
-  p->allocated = 0;
-  p->used = 0;
-}
-
-static void deinit_paren_symbols(PAREN_SYMBOLS* p) {
-  assert(p != NULL);
-  for (unsigned i = 0; i < p->used; i++)
-    deinit_paren_symbol(p->sym + i);
-  efree(p->sym);
-  p->sym = NULL;
-  p->allocated = 0;
-  p->used = 0;
-}
-
-static PAREN_SYMBOL* lookup_paren_name(const PAREN_SYMBOLS* p, unsigned name) {
-  for (unsigned i = 0; i < p->used; i++) {
-    if (p->sym[i].name == name)
-      return &p->sym[i];
-  }
-
-  return NULL;
-}
-
-static PAREN_SYMBOL* insert_paren_symbol(PAREN_SYMBOLS* p, unsigned name, int type, int kind) {
-  assert(p->used <= p->allocated);
-  if (p->used == p->allocated) {
-    p->allocated = p->allocated ? 2 * p->allocated : 16;
-    p->sym = erealloc(p->sym, p->allocated * sizeof p->sym[0]);
-  }
-  assert(p->used < p->allocated);
-  PAREN_SYMBOL* sym = p->sym + p->used++;
-  sym->name = name;
-  sym->type = type;
-  sym->kind = kind;
-  return sym;
-}
-
-static PAREN_SYMBOL* insert_numeric_array(PAREN_SYMBOLS* p, unsigned name, unsigned base, unsigned dimensions, unsigned max[]) {
-  struct numeric_array * arr = new_numeric_array(base, dimensions, max);
-  if (arr == NULL)
-    return NULL;
-
-  PAREN_SYMBOL* sym = insert_paren_symbol(p, name, TYPE_NUM, PK_ARRAY);
-  sym->u.numarr = arr;
-  return sym;
-}
-
-static bool replace_numeric_array(PAREN_SYMBOL* sym, unsigned base, unsigned dimensions, unsigned max[]) {
-  struct numeric_array * arr = new_numeric_array(base, dimensions, max);
-  if (arr == NULL)
-    return false;
-
-  delete_numeric_array(sym->u.numarr);
-  sym->u.numarr = arr;
-  return true;
-}
-
-static PAREN_SYMBOL* insert_string_array(PAREN_SYMBOLS* p, unsigned name, unsigned base, unsigned dimensions, unsigned max[]) {
-  struct string_array * arr = new_string_array(base, dimensions, max);
-  if (arr == NULL)
-    return NULL;
-
-  PAREN_SYMBOL* sym = insert_paren_symbol(p, name, TYPE_STR, PK_ARRAY);
-  sym->u.strarr = arr;
-  return sym;
-}
-
-static bool replace_string_array(PAREN_SYMBOL* sym, unsigned base, unsigned dimensions, unsigned max[]) {
-  struct string_array * arr = new_string_array(base, dimensions, max);
-  if (arr == NULL)
-    return false;
-
-  delete_string_array(sym->u.strarr);
-  sym->u.strarr = arr;
-  return true;
-}
-
-static PAREN_SYMBOL* insert_def(PAREN_SYMBOLS* p, unsigned name, int type, unsigned params, unsigned source_line, unsigned pc) {
-  PAREN_SYMBOL* sym = insert_paren_symbol(p, name, type, PK_DEF);
-  sym->u.def = new_def(params, source_line, pc);
-  return sym;
-}
-
-static void replace_def(PAREN_SYMBOL* sym, unsigned params, unsigned source_line, unsigned pc) {
-  struct def * def = sym->u.def;
-  def->params = params;
-  def->source_line = source_line;
-  def->pc = pc;
-}
-
-static void insert_builtin(PAREN_SYMBOLS* p, const BUILTIN* b, BCODE* bcode) {
-  insert_paren_symbol(p, bcode_name_entry(bcode, b->name), b->type, PK_BUILTIN);
-}
-
-static void insert_builtins(PAREN_SYMBOLS* p, BCODE* bcode) {
-  const BUILTIN* b;
-
-  for (unsigned i = 0; b = builtin_number(i); i++)
-    insert_builtin(p, b, bcode);
+void clear_environment(ENV* env) {
+  assert(env != NULL);
+  env->numvars.count = 0;
+  for (unsigned i = 0; i < env->strvars.count; i++)
+      efree(env->strvars.vars[i].val);
+  env->strvars.count = 0;
+  deinit_paren_symbols(&env->paren);
+  deinit_stringlist(env->names);
 }
 
 struct gosub {
@@ -341,11 +64,10 @@ struct gosub {
 
 typedef struct {
   BCODE* bc;
+  ENV* env;
+  const SOURCE* source;
   double stack[MAX_NUM_STACK];
   char* strstack[MAX_STR_STACK];
-  NUMVARS numvars;
-  STRVARS strvars;
-  PAREN_SYMBOLS paren;
   struct gosub retstack[MAX_RETURN_STACK];
   bool stopped;
   unsigned pc;
@@ -384,13 +106,14 @@ typedef struct {
   bool strict_on;
   bool strict_variables;
   bool input_prompt;
+  // run-time error-catching
+  jmp_buf errjmp;
 } VM;
 
-static void init_vm(VM* vm, BCODE* bc, bool trace_basic, bool trace_for) {
+static void init_vm(VM* vm, BCODE* bc, ENV* env, const SOURCE* source, bool trace_basic, bool trace_for) {
   vm->bc = bc;
-  vm->numvars.count = 0;
-  vm->strvars.count = 0;
-  init_paren_symbols(&vm->paren);
+  vm->env = env;
+  vm->source = source;
   vm->stopped = false;
   vm->pc = 0;
   vm->sp = 0;
@@ -411,7 +134,6 @@ static void init_vm(VM* vm, BCODE* bc, bool trace_basic, bool trace_for) {
   vm->strict_on = false;
   vm->strict_variables = false;
   vm->input_prompt = true;
-  insert_builtins(&vm->paren, vm->bc);
 }
 
 static void deinit_vm(VM* vm) {
@@ -419,9 +141,6 @@ static void deinit_vm(VM* vm) {
     vm->ssp--;
     efree(vm->strstack[vm->ssp]);
   }
-  for (unsigned i = 0; i < vm->strvars.count; i++)
-    efree(vm->strvars.vars[i].val);
-  deinit_paren_symbols(&vm->paren);
   vm->stopped = true;
   vm->pc = vm->bc->used;
   vm->sp = 0;
@@ -435,16 +154,32 @@ static void deinit_vm(VM* vm) {
   vm->inp = 0;
 }
 
-static void run_error(const VM* vm, const char* fmt, ...) {
+static VM* new_vm(BCODE* bc, ENV* env, const SOURCE* source, bool trace_basic, bool trace_for) {
+  VM* vm = ecalloc(1, sizeof *vm);
+  init_vm(vm, bc, env, source, trace_basic, trace_for);
+  return vm;
+}
+
+static void delete_vm(VM* vm) {
+  if (vm) {
+    deinit_vm(vm);
+    efree(vm);
+  }
+}
+
+static void run_error(VM* vm, const char* fmt, ...) {
   fputs("Runtime error: ", stderr);
   va_list ap;
   va_start(ap, fmt);
   vfprintf(stderr, fmt, ap);
   va_end(ap);
 
-  print_source_line(vm->bc->source, vm->source_line, stderr);
+  if (vm->source && vm->source_line) {
+    print_source_line(vm->source, vm->source_line, stderr);
+    putc('\n', stderr);
+  }
 
-  exit(EXIT_FAILURE);
+  longjmp(vm->errjmp, 1);
 }
 
 static double pop(VM* vm) {
@@ -463,6 +198,15 @@ static unsigned pop_unsigned(VM* vm) {
   return (unsigned) x;
 }
 
+static unsigned pop_index(VM* vm) {
+  double x = pop(vm);
+  if (x < 0 || floor(x) != x)
+    run_error(vm, "non-negative array index was expected: %g\n", x);
+  if (x > (unsigned)(-1))
+    run_error(vm, "out of range: %g\n", x);
+  return (unsigned) x;
+}
+
 static int pop_logic(VM* vm) {
   double x = pop(vm);
   if (x < INT_MIN || x > INT_MAX || x != floor(x))
@@ -472,7 +216,7 @@ static int pop_logic(VM* vm) {
 
 static void push(VM* vm, double num) {
   if (vm->sp >= MAX_NUM_STACK)
-    fatal("numeric stack overflow\n");
+    run_error(vm, "numeric stack overflow\n");
   vm->stack[vm->sp++] = num;
 }
 
@@ -493,20 +237,20 @@ static void push_str(VM* vm, const char* s) {
   vm->strstack[vm->ssp++] = estrdup(s ? s : "");
 }
 
-static const char* numvar_name(const VM* vm, unsigned var) {
-  if (var >= vm->numvars.count)
+static const char* numvar_name(VM* vm, unsigned var) {
+  if (var >= vm->env->numvars.count)
     run_error(vm, "Internal error: numvar_name: variable number out of range\n");
-  return bcode_name(vm->bc, vm->numvars.vars[var].name);
+  return stringlist_item(vm->env->names, vm->env->numvars.vars[var].name);
 }
 
 static void dump_numvars(const VM* vm, FILE* fp) {
-  for (unsigned i = 0; i < vm->numvars.count; i++)
-    fprintf(fp, "%s=%g\n", bcode_name(vm->bc, vm->numvars.vars[i].name), vm->numvars.vars[i].val);
+  for (unsigned i = 0; i < vm->env->numvars.count; i++)
+    fprintf(fp, "%s=%g\n", stringlist_item(vm->env->names, vm->env->numvars.vars[i].name), vm->env->numvars.vars[i].val);
 }
 
 static int lookup_numvar_name(VM* vm, unsigned name) {
-  for (int i = vm->numvars.count - 1; i >= 0; i--) {
-    if (vm->numvars.vars[i].name == name)
+  for (int i = vm->env->numvars.count - 1; i >= 0; i--) {
+    if (vm->env->numvars.vars[i].name == name)
       return i;
   }
 
@@ -514,21 +258,21 @@ static int lookup_numvar_name(VM* vm, unsigned name) {
 }
 
 static void check_name(VM* vm, unsigned name) {
-  if (name >= stringlist_count(&vm->bc->names))
+  if (name >= stringlist_count(vm->env->names))
     run_error(vm, "internal error: name index out of range\n");
 }
 
 static int insert_numvar_name(VM* vm, unsigned name) {
   check_name(vm, name);
 
-  if (vm->numvars.count >= MAX_NUM_VAR) {
+  if (vm->env->numvars.count >= MAX_NUM_VAR) {
     dump_numvars(vm, stderr);
     run_error(vm, "too many numeric variables\n");
   }
 
-  int i = vm->numvars.count++;
-  vm->numvars.vars[i].name = name;
-  vm->numvars.vars[i].val = 0;
+  int i = vm->env->numvars.count++;
+  vm->env->numvars.vars[i].name = name;
+  vm->env->numvars.vars[i].val = 0;
   return i;
 }
 
@@ -536,12 +280,12 @@ static void set_numvar_name(VM* vm, unsigned name, double val) {
   int j = lookup_numvar_name(vm, name);
   if (j < 0)
     j = insert_numvar_name(vm, name);
-  vm->numvars.vars[j].val = val;
+  vm->env->numvars.vars[j].val = val;
 }
 
 static int lookup_strvar_name(VM* vm, unsigned name) {
-  for (int i = vm->strvars.count - 1; i >= 0; i--) {
-    if (vm->strvars.vars[i].name == name)
+  for (int i = vm->env->strvars.count - 1; i >= 0; i--) {
+    if (vm->env->strvars.vars[i].name == name)
       return i;
   }
 
@@ -551,12 +295,12 @@ static int lookup_strvar_name(VM* vm, unsigned name) {
 static int insert_strvar_name(VM* vm, unsigned name) {
   check_name(vm, name);
 
-  if (vm->strvars.count >= MAX_STR_VAR)
-    fatal("too many string variables\n");
+  if (vm->env->strvars.count >= MAX_STR_VAR)
+    run_error(vm, "too many string variables\n");
 
-  int i = vm->strvars.count++;
-  vm->strvars.vars[i].name = name;
-  vm->strvars.vars[i].val = NULL;
+  int i = vm->env->strvars.count++;
+  vm->env->strvars.vars[i].name = name;
+  vm->env->strvars.vars[i].val = NULL;
   return i;
 }
 
@@ -564,20 +308,20 @@ static void set_strvar_name(VM* vm, unsigned name, char* s) {
   int j = lookup_strvar_name(vm, name);
   if (j < 0)
     j = insert_strvar_name(vm, name);
-  efree(vm->strvars.vars[j].val);
-  vm->strvars.vars[j].val = s;
+  efree(vm->env->strvars.vars[j].val);
+  vm->env->strvars.vars[j].val = s;
 }
 
 static void pop_indexes(VM* vm, unsigned* indexes, unsigned dimensions) {
   assert(dimensions <= MAX_DIMENSIONS);
   for (unsigned i = 0; i < dimensions; i++)
-    indexes[i] = pop_unsigned(vm);
+    indexes[i] = pop_index(vm);
 }
 
 static double* numeric_element(VM* vm, struct numeric_array * p, unsigned name, unsigned dimensions, unsigned* indexes) {
   double* addr = NULL;
   if (!compute_numeric_element(p, dimensions, indexes, &addr))
-    run_error(vm, "array indexes invalid or out of range: %s\n", bcode_name(vm->bc, name));
+    run_error(vm, "array indexes invalid or out of range: %s\n", stringlist_item(vm->env->names, name));
   return addr;
 }
 
@@ -585,10 +329,10 @@ static void dimension_numeric(VM* vm, unsigned name, unsigned short dimensions) 
   unsigned max[MAX_DIMENSIONS];
 
   for (unsigned i = 0; i < dimensions; i++)
-    max[i] = pop_unsigned(vm);
+    max[i] = pop_index(vm);
 
-  if (insert_numeric_array(&vm->paren, name, vm->array_base, dimensions, max) == NULL)
-    run_error(vm, "invalid dimensions: %s\n", bcode_name(vm->bc, name));
+  if (insert_numeric_array(&vm->env->paren, name, vm->array_base, dimensions, max) == NULL)
+    run_error(vm, "invalid dimensions: %s\n", stringlist_item(vm->env->names, name));
 }
 
 static PAREN_SYMBOL* dimension_numeric_auto(VM* vm, unsigned name, unsigned short dimensions, unsigned* indexes) {
@@ -600,9 +344,9 @@ static PAREN_SYMBOL* dimension_numeric_auto(VM* vm, unsigned name, unsigned shor
       max[i] = 10;
   }
 
-  PAREN_SYMBOL* sym = insert_numeric_array(&vm->paren, name, vm->array_base, dimensions, max);
+  PAREN_SYMBOL* sym = insert_numeric_array(&vm->env->paren, name, vm->array_base, dimensions, max);
   if (sym == NULL)
-    run_error(vm, "invalid dimensions: %s\n", bcode_name(vm->bc, name));
+    run_error(vm, "invalid dimensions: %s\n", stringlist_item(vm->env->names, name));
   return sym;
 }
 
@@ -613,21 +357,21 @@ static void redimension_numeric(VM* vm, PAREN_SYMBOL* sym, unsigned dimensions) 
   unsigned max[MAX_DIMENSIONS];
 
   for (unsigned i = 0; i < dimensions; i++)
-    max[i] = pop_unsigned(vm);
+    max[i] = pop_index(vm);
 
   if (!replace_numeric_array(sym, vm->array_base, dimensions, max))
-    run_error(vm, "invalid dimensions: %s\n", bcode_name(vm->bc, sym->name));
+    run_error(vm, "invalid dimensions: %s\n", stringlist_item(vm->env->names, sym->name));
 }
 
 static void set_numeric_element_name(VM* vm, unsigned name, unsigned dimensions, double val) {
   unsigned indexes[MAX_DIMENSIONS];
   pop_indexes(vm, indexes, dimensions);
 
-  PAREN_SYMBOL* sym = lookup_paren_name(&vm->paren, name);
+  PAREN_SYMBOL* sym = lookup_paren_name(&vm->env->paren, name);
   if (sym == NULL)
     sym = dimension_numeric_auto(vm, name, dimensions, indexes);
   else if (sym->kind != PK_ARRAY || sym->type != TYPE_NUM)
-    run_error(vm, "not a numeric array: %s\n", bcode_name(vm->bc, name));
+    run_error(vm, "not a numeric array: %s\n", stringlist_item(vm->env->names, name));
 
   *numeric_element(vm, sym->u.numarr, name, dimensions, indexes) = val;
 }
@@ -642,8 +386,8 @@ static void set_numeric_name(VM* vm, unsigned name, unsigned dimensions, double 
 static void dimension_string(VM* vm, unsigned name, unsigned short dimensions) {
   unsigned indexes[MAX_DIMENSIONS];
   pop_indexes(vm, indexes, dimensions);
-  if (insert_string_array(&vm->paren, name, vm->array_base, dimensions, indexes) == NULL)
-    run_error(vm, "invalid dimensions: %s\n", bcode_name(vm->bc, name));
+  if (insert_string_array(&vm->env->paren, name, vm->array_base, dimensions, indexes) == NULL)
+    run_error(vm, "invalid dimensions: %s\n", stringlist_item(vm->env->names, name));
 }
 
 static PAREN_SYMBOL* dimension_string_auto(VM* vm, unsigned name, unsigned short dimensions, unsigned* indexes) {
@@ -655,9 +399,9 @@ static PAREN_SYMBOL* dimension_string_auto(VM* vm, unsigned name, unsigned short
       max[i] = 10;
   }
 
-  PAREN_SYMBOL* sym = insert_string_array(&vm->paren, name, vm->array_base, dimensions, max);
+  PAREN_SYMBOL* sym = insert_string_array(&vm->env->paren, name, vm->array_base, dimensions, max);
   if (sym == NULL)
-    run_error(vm, "invalid dimensions: %s\n", bcode_name(vm->bc, name));
+    run_error(vm, "invalid dimensions: %s\n", stringlist_item(vm->env->names, name));
   return sym;
 }
 
@@ -668,16 +412,16 @@ static void redimension_string(VM* vm, PAREN_SYMBOL* sym, unsigned dimensions) {
   unsigned max[MAX_DIMENSIONS];
 
   for (unsigned i = 0; i < dimensions; i++)
-    max[i] = pop_unsigned(vm);
+    max[i] = pop_index(vm);
 
   if (!replace_string_array(sym, vm->array_base, dimensions, max))
-    run_error(vm, "invalid dimensions: %s\n", bcode_name(vm->bc, sym->name));
+    run_error(vm, "invalid dimensions: %s\n", stringlist_item(vm->env->names, sym->name));
 }
 
 static char* * string_element(VM* vm, struct string_array * p, unsigned name, unsigned dimensions, unsigned *indexes) {
   char* * addr = NULL;
   if (!compute_string_element(p, dimensions, indexes, &addr))
-    run_error(vm, "array indexes invalid or out of range: %s\n", bcode_name(vm->bc, name));
+    run_error(vm, "array indexes invalid or out of range: %s\n", stringlist_item(vm->env->names, name));
   assert(addr != NULL);
   return addr;
 }
@@ -692,11 +436,11 @@ static void set_string_element_name(VM* vm, unsigned name, unsigned dimensions, 
   unsigned indexes[MAX_DIMENSIONS];
   pop_indexes(vm, indexes, dimensions);
 
-  PAREN_SYMBOL* sym = lookup_paren_name(&vm->paren, name);
+  PAREN_SYMBOL* sym = lookup_paren_name(&vm->env->paren, name);
   if (sym == NULL)
     sym = dimension_string_auto(vm, name, dimensions, indexes);
   if (sym->kind != PK_ARRAY || sym->type != TYPE_STR)
-    run_error(vm, "not a string array: %s\n", bcode_name(vm->bc, name));
+    run_error(vm, "not a string array: %s\n", stringlist_item(vm->env->names, name));
   set_string_element(vm, sym->u.strarr, name, dimensions, indexes, val);
 }
 
@@ -711,36 +455,43 @@ static void execute(VM*);
 
 static const char STRING_TOO_LONG[] = "string too long\n";
 
-void run(BCODE* bc, bool trace_basic, bool trace_for, bool randomize) {
+void run(BCODE* bc, ENV* env, const SOURCE* source, bool trace_basic, bool trace_for, bool randomize) {
   assert(bc != NULL);
-  VM vm;
-  init_vm(&vm, bc, trace_basic, trace_for);
+  VM* vm = new_vm(bc, env, source, trace_basic, trace_for);
+
+  insert_builtins(&vm->env->paren, env->names);
 
   if (randomize)
     srand((unsigned)time(NULL));
 
-  while (vm.pc < bc->used && !vm.stopped)
-    execute(&vm);
+  if (setjmp(vm->errjmp) == 0) {
+    while (vm->pc < bc->used && !vm->stopped && !interrupted)
+      execute(vm);
+  }
 
-  if (vm.stopped) {
-    print_source_line(vm.bc->source, vm.source_line, stdout);
+  if (interrupted)
+    puts("Break");
+  else if (vm->stopped) {
+    print_source_line(vm->source, vm->source_line, stdout);
+    putchar('\n');
     puts("Stopped");
   }
   else {
-    if (vm.strict_for && vm.for_sp != 0) {
-      struct for_loop * f = &vm.for_stack[vm.for_sp-1];
-      const char* name = numvar_name(&vm, f->var);
+    if (vm->strict_for && vm->for_sp != 0) {
+      struct for_loop * f = &vm->for_stack[vm->for_sp-1];
+      const char* name = numvar_name(vm, f->var);
       fprintf(stderr, "FOR without NEXT: %s\n", name);
-      print_source_line(vm.bc->source, f->line, stderr);
+      print_source_line(vm->source, f->line, stderr);
+      putc('\n', stderr);
     }
   }
 
-  deinit_vm(&vm);
+  delete_vm(vm);
 }
 
 static unsigned find_basic_line(VM* vm, unsigned basic_line) {
   unsigned source_line;
-  if (!bcode_find_basic_line(vm->bc, basic_line, &source_line))
+  if (!bcode_find_basic_line(vm->bc, basic_line, vm->source, &source_line))
     run_error(vm, "Line not found: %u\n", basic_line);
   return source_line;
 }
@@ -749,7 +500,7 @@ static void check_paren_kind(VM* vm, const PAREN_SYMBOL* sym, int kind) {
   assert(sym != NULL);
 
   if (sym->kind != kind)
-    run_error(vm, "name is %s, not %s: %s\n", paren_kind(sym->kind), paren_kind(kind), bcode_name(vm->bc, sym->name));
+    run_error(vm, "name is %s, not %s: %s\n", paren_kind(sym->kind), paren_kind(kind), stringlist_item(vm->env->names, sym->name));
 }
 
 static void call_def(VM* vm, const struct def * def, unsigned name, unsigned params);
@@ -777,9 +528,13 @@ static void execute(VM* vm) {
     case B_LINE:
       vm->source_line = i->u.line;
       if (vm->trace_basic) {
-        printf("[%u]", source_linenum(vm->bc->source, i->u.line));
+        printf("[%u]", source_linenum(vm->source, i->u.line));
         fflush(stdout);
       }
+      break;
+    // whole environment
+    case B_CLEAR:
+      clear_environment(vm->env);
       break;
     // number
     case B_PUSH_NUM:
@@ -789,22 +544,22 @@ static void execute(VM* vm) {
       int j = lookup_numvar_name(vm, i->u.name);
       if (j < 0) {
         if (vm->strict_variables)
-          run_error(vm, "Variable not found: %s\n", stringlist_item(&vm->bc->names, i->u.name));
+          run_error(vm, "Variable not found: %s\n", stringlist_item(vm->env->names, i->u.name));
         push(vm, 0);
       }
       else
-        push(vm, vm->numvars.vars[j].val);
+        push(vm, vm->env->numvars.vars[j].val);
       break;
     }
     case B_SET_SIMPLE_NUM:
       set_numvar_name(vm, i->u.name, pop(vm));
       break;
     case B_DIM_NUM: {
-      PAREN_SYMBOL* sym = lookup_paren_name(&vm->paren, i->u.param.name);
+      PAREN_SYMBOL* sym = lookup_paren_name(&vm->env->paren, i->u.param.name);
       if (sym) {
         check_paren_kind(vm, sym, PK_ARRAY);
         if (sym->type != TYPE_NUM)
-          run_error(vm, "cannot redimension: not a numeric array: %s\n", bcode_name(vm->bc, i->u.param.name));
+          run_error(vm, "cannot redimension: not a numeric array: %s\n", stringlist_item(vm->env->names, i->u.param.name));
         redimension_numeric(vm, sym, i->u.param.params);
       }
       else
@@ -812,7 +567,7 @@ static void execute(VM* vm) {
       break;
     }
     case B_GET_PAREN_NUM: {
-      PAREN_SYMBOL* sym = lookup_paren_name(&vm->paren, i->u.param.name);
+      PAREN_SYMBOL* sym = lookup_paren_name(&vm->env->paren, i->u.param.name);
       if (sym == NULL) {
         unsigned indexes[MAX_DIMENSIONS];
         pop_indexes(vm, indexes, i->u.param.params);
@@ -821,7 +576,7 @@ static void execute(VM* vm) {
         break;
       }
       if (sym->type != TYPE_NUM)
-        run_error(vm, "numeric array or function was expected: %s\n", bcode_name(vm->bc, i->u.param.name));
+        run_error(vm, "numeric array or function was expected: %s\n", stringlist_item(vm->env->names, i->u.param.name));
       switch (sym->kind) {
         case PK_ARRAY: {
           unsigned indexes[MAX_DIMENSIONS];
@@ -926,19 +681,19 @@ static void execute(VM* vm) {
       int j = lookup_strvar_name(vm, i->u.name);
       if (j < 0) {
         if (vm->strict_variables)
-          run_error(vm, "Variable not found: %s\n", stringlist_item(&vm->bc->names, i->u.name));
+          run_error(vm, "Variable not found: %s\n", stringlist_item(vm->env->names, i->u.name));
         push_str(vm, "");
       }
       else
-        push_str(vm, vm->strvars.vars[j].val);
+        push_str(vm, vm->env->strvars.vars[j].val);
       break;
     }
     case B_DIM_STR: {
-      PAREN_SYMBOL* sym = lookup_paren_name(&vm->paren, i->u.param.name);
+      PAREN_SYMBOL* sym = lookup_paren_name(&vm->env->paren, i->u.param.name);
       if (sym) {
         check_paren_kind(vm, sym, PK_ARRAY);
         if (sym->type != TYPE_STR)
-          run_error(vm, "cannot redimension: not a string array: %s\n", bcode_name(vm->bc, i->u.param.name));
+          run_error(vm, "cannot redimension: not a string array: %s\n", stringlist_item(vm->env->names, i->u.param.name));
         redimension_string(vm, sym, i->u.param.params);
       }
       else
@@ -946,7 +701,7 @@ static void execute(VM* vm) {
       break;
     }
     case B_GET_PAREN_STR: {
-      PAREN_SYMBOL* sym = lookup_paren_name(&vm->paren, i->u.param.name);
+      PAREN_SYMBOL* sym = lookup_paren_name(&vm->env->paren, i->u.param.name);
       if (sym == NULL) {
         unsigned indexes[MAX_DIMENSIONS];
         pop_indexes(vm, indexes, i->u.param.params);
@@ -955,7 +710,7 @@ static void execute(VM* vm) {
         break;
       }
       if (sym->type != TYPE_STR)
-        run_error(vm, "string array or function was expected: %s\n", bcode_name(vm->bc, i->u.param.name));
+        run_error(vm, "string array or function was expected: %s\n", stringlist_item(vm->env->names, i->u.param.name));
       switch (sym->kind) {
         case PK_ARRAY: {
           unsigned indexes[MAX_DIMENSIONS];
@@ -1067,7 +822,7 @@ static void execute(VM* vm) {
         f->var = insert_numvar_name(vm, i->u.name);
       f->step = pop(vm);
       f->limit = pop(vm);
-      vm->numvars.vars[f->var].val = pop(vm);
+      vm->env->numvars.vars[f->var].val = pop(vm);
       f->line = vm->source_line;
       f->pc = vm->pc;
       if (vm->trace_for)
@@ -1085,15 +840,15 @@ static void execute(VM* vm) {
       if (var != f->var) {
         if (vm->strict_for) {
           const char* for_name = numvar_name(vm, f->var);
-          const char* next_name = bcode_name(vm->bc, i->u.name);
+          const char* next_name = stringlist_item(vm->env->names, i->u.name);
           run_error(vm, "mismatched FOR variable: expecting %s, found %s\n", for_name, next_name);
         }
         si = find_for(vm, i->u.name);
         if (si < 0)
-          run_error(vm, "NEXT without FOR: %s\n", bcode_name(vm->bc, i->u.name));
+          run_error(vm, "NEXT without FOR: %s\n", stringlist_item(vm->env->names, i->u.name));
         f = &vm->for_stack[si];
       }
-      double x = vm->numvars.vars[f->var].val + f->step;
+      double x = vm->env->numvars.vars[f->var].val + f->step;
       if (f->step > 0 && x > f->limit || f->step < 0 && x < f->limit) {
         // remove FOR stack index si
         assert(vm->for_sp > 0);
@@ -1102,7 +857,7 @@ static void execute(VM* vm) {
           vm->for_stack[k] = vm->for_stack[k + 1];
       }
       else {
-        vm->numvars.vars[f->var].val = x;
+        vm->env->numvars.vars[f->var].val = x;
         vm->pc = f->pc;
       }
       if (vm->trace_for)
@@ -1116,11 +871,11 @@ static void execute(VM* vm) {
         run_error(vm, "NEXT without FOR\n");
       int si = vm->for_sp - 1;
       struct for_loop * f = &vm->for_stack[si];
-      double x = vm->numvars.vars[f->var].val + f->step;
+      double x = vm->env->numvars.vars[f->var].val + f->step;
       if (f->step > 0 && x > f->limit || f->step < 0 && x < f->limit)
         vm->for_sp--;
       else {
-        vm->numvars.vars[f->var].val = x;
+        vm->env->numvars.vars[f->var].val = x;
         vm->pc = f->pc;
       }
       if (vm->trace_for)
@@ -1128,14 +883,14 @@ static void execute(VM* vm) {
       break;
     }
     case B_DEF: {
-      PAREN_SYMBOL* sym = lookup_paren_name(&vm->paren, i->u.param.name);
+      PAREN_SYMBOL* sym = lookup_paren_name(&vm->env->paren, i->u.param.name);
       if (sym) {
         check_paren_kind(vm, sym, PK_DEF);
         replace_def(sym, i->u.param.params, vm->source_line, vm->pc);
       }
       else {
-        int type = string_name(bcode_name(vm->bc, i->u.param.name)) ? TYPE_STR : TYPE_NUM;
-        insert_def(&vm->paren, i->u.param.name, type, i->u.param.params, vm->source_line, vm->pc);
+        int type = string_name(stringlist_item(vm->env->names, i->u.param.name)) ? TYPE_STR : TYPE_NUM;
+        insert_def(&vm->env->paren, i->u.param.name, type, i->u.param.params, vm->source_line, vm->pc);
       }
       do {
         vm->pc++;
@@ -1438,7 +1193,7 @@ static void execute(VM* vm) {
     // unknown opcode
     default:
       fputs("UNKNOWN OPCODE:\n", stderr);
-      print_binst(vm->bc, vm->pc, stderr);
+      print_binst(vm->bc, vm->pc, vm->source, vm->env->names, stderr);
       run_error(vm, "unknown opcode: %u\n", i->op);
   }
   vm->pc++;
@@ -1478,14 +1233,14 @@ static void call_def(VM* vm, const struct def * def, unsigned name, unsigned par
     run_error(vm, "nested user-defined function calls are not allowed\n");
 
   if (params != def->params)
-    run_error(vm, "unexpected number of parameters: %s: expected %u, received %u\n", bcode_name(vm->bc, name), def->params, params);
+    run_error(vm, "unexpected number of parameters: %s: expected %u, received %u\n", stringlist_item(vm->env->names, name), def->params, params);
 
   if (vm->pc + params >= vm->bc->used)
-    run_error(vm, "program corrupt: missing parameters: %s\n", bcode_name(vm->bc, name));
+    run_error(vm, "program corrupt: missing parameters: %s\n", stringlist_item(vm->env->names, name));
 
   vm->fn.pc = vm->pc;
   vm->fn.source_line = vm->source_line;
-  vm->fn.numvars_count = vm->numvars.count;
+  vm->fn.numvars_count = vm->env->numvars.count;
 
   vm->pc = def->pc;
   vm->source_line = def->source_line;
@@ -1494,11 +1249,11 @@ static void call_def(VM* vm, const struct def * def, unsigned name, unsigned par
   for ( ; params > 0; params--) {
     BINST* p = vm->bc->inst + vm->pc + params;
     if (p->op != B_PARAM) {
-      print_binst(vm->bc, vm->pc, stderr);
+      print_binst(vm->bc, vm->pc, vm->source, vm->env->names, stderr);
       run_error(vm, "program corrupt: parameter expected\n");
     }
     int var = insert_numvar_name(vm, p->u.name);
-    vm->numvars.vars[var].val = pop(vm);
+    vm->env->numvars.vars[var].val = pop(vm);
   }
 
   vm->pc += def->params;
@@ -1509,7 +1264,7 @@ static void end_def(VM* vm) {
     run_error(vm, "unexpected END DEF\n");
   vm->pc = vm->fn.pc;
   vm->source_line = vm->fn.source_line;
-  vm->numvars.count = vm->fn.numvars_count;
+  vm->env->numvars.count = vm->fn.numvars_count;
   vm->fn.pc = -1;
 }
 
@@ -1525,7 +1280,7 @@ static int compare_strings(VM* vm) {
 static int find_for(VM* vm, unsigned name) {
   for (int j = 0; j < (int)vm->for_sp; j++) {
     int var = vm->for_stack[j].var;
-    if (vm->numvars.vars[var].name == name)
+    if (vm->env->numvars.vars[var].name == name)
       return j;
   }
   return -1;
@@ -1533,7 +1288,7 @@ static int find_for(VM* vm, unsigned name) {
 
 static void dump_for(VM* vm, const char* tag) {
   printf("[%s]\n", tag);
-  printf("-- line: %u %s\n", source_linenum(vm->bc->source, vm->source_line), source_text(vm->bc->source, vm->source_line));
+  printf("-- line: %u %s\n", source_linenum(vm->source, vm->source_line), source_text(vm->source, vm->source_line));
   dump_for_stack(vm, "initial stack");
 }
 
@@ -1544,7 +1299,7 @@ static void dump_for_stack(VM* vm, const char* tag) {
   else {
     for (unsigned j = vm->for_sp; j > 0; j--) {
       int var = vm->for_stack[j-1].var;
-      printf("%s = %g, %g; ", numvar_name(vm, var), vm->numvars.vars[var].val, vm->for_stack[j-1].limit);
+      printf("%s = %g, %g; ", numvar_name(vm, var), vm->env->numvars.vars[var].val, vm->for_stack[j-1].limit);
     }
   }
   putc('\n', stdout);

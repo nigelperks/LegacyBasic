@@ -6,4 +6,5 @@
 #include "source.h"
 #include "bcode.h"
 
-BCODE* parse(const SOURCE*, bool recognise_keyword_prefixes);
+BCODE* parse_source(const SOURCE*, STRINGLIST* names, bool recognise_keyword_prefixes);
+BCODE* parse_text(const char* text, STRINGLIST* names, const char* name, bool recognise_keyword_prefixes);

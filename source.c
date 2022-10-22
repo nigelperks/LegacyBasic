@@ -10,11 +10,17 @@
 #include "source.h"
 #include "utils.h"
 
-static SOURCE* new_source(const char* name) {
-  assert(name != NULL);
+SOURCE* new_source(const char* name) {
   SOURCE* p = ecalloc(1, sizeof (SOURCE));
-  p->name = estrdup(name);
+  p->name = name ? estrdup(name) : NULL;
   return p;
+}
+
+void clear_source(SOURCE* src) {
+  assert(src != NULL);
+  for (unsigned i = 0; i < src->used; i++)
+    efree(src->lines[i].text);
+  src->used = 0;
 }
 
 void delete_source(SOURCE* src) {
@@ -28,7 +34,6 @@ void delete_source(SOURCE* src) {
 }
 
 const char* source_name(const SOURCE* src) {
-  assert(src != NULL);
   return src->name;
 }
 
@@ -38,8 +43,9 @@ unsigned source_lines(const SOURCE* src) {
 }
 
 static void check_line(const SOURCE* src, unsigned line) {
+  assert(src != NULL);
   if (line >= src->used)
-    fatal("source line number out of range: %u\n", line);
+    fatal("internal error: source line number out of range: %u\n", line);
 }
 
 const char* source_text(const SOURCE* src, unsigned line) {
@@ -57,17 +63,36 @@ unsigned source_linenum(const SOURCE* src, unsigned line) {
 
 void print_source_line(const SOURCE* source, unsigned line, FILE* fp) {
   if (line < source_lines(source))
-    fprintf(fp, "%u %s\n", source_linenum(source, line), source_text(source, line));
+    fprintf(fp, "%u %s", source_linenum(source, line), source_text(source, line));
 }
 
 static void source_error(SOURCE* src, const char* fmt, ...) {
   assert(src != NULL);
-  fprintf(stderr, "%s(%u): ", src->name, src->used + 1);
+  if (src->name)
+    fprintf(stderr, "%s(%u): ", src->name, src->used + 1);
   va_list ap;
   va_start(ap, fmt);
   vfprintf(stderr, fmt, ap);
   va_end(ap);
   exit(EXIT_FAILURE);
+}
+
+static void source_warning(SOURCE* src, const char* fmt, ...) {
+  assert(src != NULL);
+  if (src->name)
+    fprintf(stderr, "%s(%u): ", src->name, src->used + 1);
+  va_list ap;
+  va_start(ap, fmt);
+  vfprintf(stderr, fmt, ap);
+  va_end(ap);
+}
+
+static void ensure_space(SOURCE* src) {
+  assert(src->used <= src->allocated);
+  if (src->used == src->allocated) {
+    src->allocated = src->allocated ? 2 * src->allocated : 128;
+    src->lines = erealloc(src->lines, src->allocated * sizeof src->lines[0]);
+  }
 }
 
 static void append(SOURCE* src, unsigned num, const char* text) {
@@ -78,11 +103,7 @@ static void append(SOURCE* src, unsigned num, const char* text) {
   unsigned latest = src->used ? src->lines[src->used - 1].num : 0;
   if (num <= latest)
     source_error(src, "line number is not in increasing order: %u\n", num);
-  assert(src->used <= src->allocated);
-  if (src->used == src->allocated) {
-    src->allocated = src->allocated ? 2 * src->allocated : 128;
-    src->lines = erealloc(src->lines, src->allocated * sizeof src->lines[0]);
-  }
+  ensure_space(src);
   assert(src->used < src->allocated);
   src->lines[src->used].num = num;
   src->lines[src->used].text = estrdup(text);
@@ -97,17 +118,59 @@ static const char* parse_line_number(SOURCE* src, const char* line, unsigned *nu
   for (; isdigit(*s); s++)
     *num = *num * 10 + *s - '0';
   if (s == line)
-    source_error(src, "line has no line number");
+    source_warning(src, "line has no line number");
   // treat one space as pure delimiter but preserve any other indenting
   if (*s == ' ')
     s++;
   return s;
 }
 
+static void spread(SOURCE* src, unsigned pos) {
+  assert(src != NULL);
+  assert(pos < src->used);
+  ensure_space(src);
+  assert(src->used < src->allocated);
+  src->used++;
+  for (unsigned i = src->used - 1; i > pos; i--)
+    src->lines[i] = src->lines[i-1];
+  src->lines[pos].num = 0;
+  src->lines[pos].text = NULL;
+}
+
+void enter_source_line(SOURCE* src, unsigned num, const char* text) {
+  assert(text != NULL);
+  for (unsigned i = 0; i < src->used; i++) {
+    if (src->lines[i].num == num) {
+      efree(src->lines[i].text);
+      src->lines[i].text = estrdup(text);
+      return;
+    }
+    if (src->lines[i].num > num) {
+      spread(src, i);
+      src->lines[i].num = num;
+      src->lines[i].text = estrdup(text);
+      return;
+    }
+  }
+  append(src, num, text);
+}
+
+void delete_source_line(SOURCE* src, unsigned line) {
+  assert(src != NULL);
+  if (line < src->used) {
+    efree(src->lines[line].text);
+    src->used--;
+    for (unsigned i = line; i < src->used; i++)
+      src->lines[i] = src->lines[i+1];
+  }
+}
+
 SOURCE* load_source_file(const char* name) {
   FILE* fp = fopen(name, "r");
-  if (fp == NULL)
-    fatal("cannot open source file: %s", name);
+  if (fp == NULL) {
+    fprintf(stderr, "Cannot open source file: %s\n", name);
+    return NULL;
+  }
   SOURCE* src = new_source(name);
   char buf[256];
   while (fgets(buf, sizeof buf, fp)) {
@@ -122,12 +185,34 @@ SOURCE* load_source_file(const char* name) {
       source_error(src, "source line is empty");
     unsigned num;
     const char* text = parse_line_number(src, buf, &num);
+    if (text == NULL)
+      exit(EXIT_FAILURE);
     append(src, num, text);
   }
   return src;
 }
 
-static unsigned get_line(SOURCE* src, const char* string, char* buf, unsigned bufsz);
+static unsigned line_length(const char* s) {
+  assert(s != NULL);
+
+  unsigned i;
+
+  for (i = 0; s[i] && s[i] != '\n'; i++)
+    ;
+
+  return i;
+}
+
+static unsigned get_line(SOURCE* src, const char* string, char* buf, unsigned bufsz) {
+  unsigned len = line_length(string);
+  if (len == 0)
+    source_error(src, "source line is empty");
+  if (len + 1 > bufsz)
+    source_error(src, "source line is too long");
+  strncpy(buf, string, len);
+  buf[len] = '\0';
+  return len;
+}
 
 SOURCE* load_source_string(const char* string, const char* name) {
   assert(string != NULL);
@@ -141,6 +226,8 @@ SOURCE* load_source_string(const char* string, const char* name) {
 
     unsigned num;
     const char* text = parse_line_number(src, buf, &num);
+    if (text == NULL)
+      exit(EXIT_FAILURE);
     append(src, num, text);
 
     if (string[len] == '\0' || string[len+1] == '\0')
@@ -152,28 +239,28 @@ SOURCE* load_source_string(const char* string, const char* name) {
   return src;
 }
 
-static unsigned line_length(const char*);
+SOURCE* wrap_source_text(const char* text) {
+  assert(text != NULL);
 
-static unsigned get_line(SOURCE* src, const char* string, char* buf, unsigned bufsz) {
-    unsigned len = line_length(string);
-    if (len == 0)
-      source_error(src, "source line is empty");
-    if (len + 1 > bufsz)
-      source_error(src, "source line is too long");
-    strncpy(buf, string, len);
-    buf[len] = '\0';
-    return len;
+  SOURCE* src = new_source(NULL);
+
+  src->lines = emalloc(sizeof src->lines[0]);
+  src->lines[0].num = 0;
+  src->lines[0].text = estrdup(text);
+  src->allocated = 1;
+  src->used = 1;
+
+  return src;
 }
 
-static unsigned line_length(const char* s) {
-  assert(s != NULL);
-
-  unsigned i;
-
-  for (i = 0; s[i] && s[i] != '\n'; i++)
-    ;
-
-  return i;
+bool find_source_linenum(const SOURCE* source, unsigned num, unsigned *index) {
+  for (unsigned i = 0; i < source->used; i++) {
+    if (source->lines[i].num == num) {
+      *index = i;
+      return true;
+    }
+  }
+  return false;
 }
 
 #ifdef UNIT_TEST
@@ -198,22 +285,41 @@ static void test_new(CuTest* tc) {
   delete_source(p);
 }
 
-static void test_parse(CuTest* tc) {
-  SOURCE* p = new_source("test");
-  unsigned num;
-  const char* text;
+static void test_clear(CuTest* tc) {
+  SOURCE* p = new_source(NULL);
+  p->lines = emalloc(4 * sizeof p->lines[0]);
+  p->allocated = 4;
+  p->lines[0].num = 100;
+  p->lines[0].text = estrdup("hello");
+  p->lines[1].num = 110;
+  p->lines[1].text = estrdup("hello again");
+  p->used = 2;
+  CuAssertStrEquals(tc, NULL, source_name(p));
+  CuAssertIntEquals(tc, 2, source_lines(p));
+  clear_source(p);
+  CuAssertIntEquals(tc, 0, p->used);
+  CuAssertIntEquals(tc, 4, p->allocated);
+  efree(p->lines);
+  efree(p);
+}
 
-  text = parse_line_number(p, "10 PRINT  ", &num);
-  CuAssertIntEquals(tc, 10, num);
-  CuAssertPtrNotNull(tc, text);
-  CuAssertStrEquals(tc, "PRINT  ", text);
+static void test_ensure_space(CuTest* tc) {
+  SOURCE* p = new_source(NULL);
 
-  text = parse_line_number(p, "20   NEXT Z", &num);
-  CuAssertIntEquals(tc, 20, num);
-  CuAssertPtrNotNull(tc, text);
-  CuAssertStrEquals(tc, "  NEXT Z", text);
+  ensure_space(p);
+  CuAssertPtrNotNull(tc, p->lines);
+  CuAssertIntEquals(tc, 128, p->allocated);
+  p->lines[127].num = 10;
+  p->used = 128;
 
-  delete_source(p);
+  ensure_space(p);
+  CuAssertPtrNotNull(tc, p->lines);
+  CuAssertIntEquals(tc, 256, p->allocated);
+  CuAssertIntEquals(tc, 10, p->lines[127].num);
+  p->lines[255].num = 20;
+
+  efree(p->lines);
+  efree(p);
 }
 
 static void test_append(CuTest* tc) {
@@ -248,6 +354,106 @@ static void test_append(CuTest* tc) {
   CuAssertStrEquals(tc, "INPUT k$", source_text(p, 1));
 
   delete_source(p);
+}
+
+static void test_parse_line_number(CuTest* tc) {
+  SOURCE* p = new_source("test");
+  unsigned num;
+  const char* text;
+
+  text = parse_line_number(p, "10 PRINT  ", &num);
+  CuAssertIntEquals(tc, 10, num);
+  CuAssertPtrNotNull(tc, text);
+  CuAssertStrEquals(tc, "PRINT  ", text);
+
+  text = parse_line_number(p, "20   NEXT Z", &num);
+  CuAssertIntEquals(tc, 20, num);
+  CuAssertPtrNotNull(tc, text);
+  CuAssertStrEquals(tc, "  NEXT Z", text);
+
+  delete_source(p);
+}
+
+static void test_spread(CuTest* tc) {
+  SOURCE* p = new_source(NULL);
+
+  append(p, 100, "PRINT");
+  spread(p, 0);
+  CuAssertIntEquals(tc, 2, p->used);
+  CuAssertIntEquals(tc, 0, p->lines[0].num);
+  CuAssertPtrEquals(tc, NULL, p->lines[0].text);
+  CuAssertIntEquals(tc, 100, p->lines[1].num);
+  CuAssertStrEquals(tc, "PRINT", p->lines[1].text);
+
+  p->lines[0].num = 50;
+  p->lines[0].text = estrdup("REM TEST");
+  spread(p, 1);
+  CuAssertIntEquals(tc, 3, p->used);
+  CuAssertIntEquals(tc, 50, p->lines[0].num);
+  CuAssertStrEquals(tc, "REM TEST", p->lines[0].text);
+  CuAssertIntEquals(tc, 0, p->lines[1].num);
+  CuAssertPtrEquals(tc, NULL, p->lines[1].text);
+  CuAssertIntEquals(tc, 100, p->lines[2].num);
+  CuAssertStrEquals(tc, "PRINT", p->lines[2].text);
+
+  delete_source(p);
+}
+
+static void test_enter_find_delete(CuTest* tc) {
+  SOURCE* p = new_source(NULL);
+
+  enter_source_line(p, 100, "PRINT");
+  CuAssertIntEquals(tc, 1, p->used);
+  CuAssertIntEquals(tc, 100, p->lines[0].num);
+  CuAssertStrEquals(tc, "PRINT", p->lines[0].text);
+
+  enter_source_line(p, 200, "NEXT");
+  CuAssertIntEquals(tc, 2, p->used);
+  CuAssertIntEquals(tc, 200, p->lines[1].num);
+  CuAssertStrEquals(tc, "NEXT", p->lines[1].text);
+
+  enter_source_line(p, 150, "FOR");
+  CuAssertIntEquals(tc, 3, p->used);
+  CuAssertIntEquals(tc, 150, p->lines[1].num);
+  CuAssertStrEquals(tc, "FOR", p->lines[1].text);
+  CuAssertIntEquals(tc, 200, p->lines[2].num);
+  CuAssertStrEquals(tc, "NEXT", p->lines[2].text);
+
+  enter_source_line(p, 200, "GOSUB 2000");
+  CuAssertIntEquals(tc, 3, p->used);
+  CuAssertIntEquals(tc, 150, p->lines[1].num);
+  CuAssertStrEquals(tc, "FOR", p->lines[1].text);
+  CuAssertIntEquals(tc, 200, p->lines[2].num);
+  CuAssertStrEquals(tc, "GOSUB 2000", p->lines[2].text);
+
+  unsigned i;
+  CuAssertIntEquals(tc, false, find_source_linenum(p, 10, &i));
+  CuAssertIntEquals(tc, true, find_source_linenum(p, 100, &i));
+  CuAssertIntEquals(tc, 0, i);
+  CuAssertIntEquals(tc, false, find_source_linenum(p, 130, &i));
+  CuAssertIntEquals(tc, true, find_source_linenum(p, 150, &i));
+  CuAssertIntEquals(tc, 1, i);
+  CuAssertIntEquals(tc, true, find_source_linenum(p, 200, &i));
+  CuAssertIntEquals(tc, 2, i);
+
+  CuAssertIntEquals(tc, 3, p->used);
+  delete_source_line(p, 3);
+  CuAssertIntEquals(tc, 3, p->used);
+
+  delete_source_line(p, 1);
+  CuAssertIntEquals(tc, 2, p->used);
+  CuAssertIntEquals(tc, 100, p->lines[0].num);
+  CuAssertIntEquals(tc, 200, p->lines[1].num);
+
+  delete_source_line(p, 1);
+  CuAssertIntEquals(tc, 1, p->used);
+  CuAssertIntEquals(tc, 100, p->lines[0].num);
+
+  delete_source_line(p, 0);
+  CuAssertIntEquals(tc, 0, p->used);
+
+  efree(p->lines);
+  efree(p);
 }
 
 static void test_line_length(CuTest* tc) {
@@ -294,14 +500,30 @@ static void test_load_string(CuTest* tc) {
   delete_source(src);
 }
 
+static void test_wrap(CuTest* tc) {
+  SOURCE* p = wrap_source_text("immediate mode");
+  CuAssertPtrNotNull(tc, p);
+  CuAssertPtrEquals(tc, NULL, p->name);
+  CuAssertPtrNotNull(tc, p->lines);
+  CuAssertIntEquals(tc, 1, p->used);
+  CuAssertIntEquals(tc, 0, p->lines[0].num);
+  CuAssertStrEquals(tc, "immediate mode", p->lines[0].text);
+  delete_source(p);
+}
+
 CuSuite* source_test_suite(void) {
   CuSuite* suite = CuSuiteNew();
   SUITE_ADD_TEST(suite, test_new);
-  SUITE_ADD_TEST(suite, test_parse);
+  SUITE_ADD_TEST(suite, test_clear);
+  SUITE_ADD_TEST(suite, test_ensure_space);
   SUITE_ADD_TEST(suite, test_append);
+  SUITE_ADD_TEST(suite, test_parse_line_number);
+  SUITE_ADD_TEST(suite, test_spread);
+  SUITE_ADD_TEST(suite, test_enter_find_delete);
   SUITE_ADD_TEST(suite, test_line_length);
   SUITE_ADD_TEST(suite, test_get_line);
   SUITE_ADD_TEST(suite, test_load_string);
+  SUITE_ADD_TEST(suite, test_wrap);
   return suite;
 }
 

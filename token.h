@@ -3,8 +3,11 @@
 
 #pragma once
 
+#include "keyword.h"
+
 enum {
   TOK_NONE = 256,
+  TOK_ERROR,
   TOK_EOF,
   TOK_ID,
   TOK_NUM,
@@ -13,8 +16,13 @@ enum {
   TOK_NE,
   TOK_LE,
   TOK_GE,
-  // keywords
-  TOK_AND,
+  // end of non-keyword tokens
+  FIRST_KEYWORD_TOKEN
+};
+
+enum {
+  TOK_AND = FIRST_KEYWORD_TOKEN,
+  TOK_CLEAR,
   TOK_DATA,
   TOK_DEF,
   TOK_DIM,
@@ -47,10 +55,6 @@ int identifier_token(const char*);
 
 void print_token(int token, FILE*);
 
-typedef struct {
-  char* name;
-  unsigned short len;
-  int token;
-} KEYWORD;
+const KEYWORD* token_prefix(const char*);
 
-const KEYWORD* keyword_prefix(const char*);
+extern const KEYWORD basic_keywords[];

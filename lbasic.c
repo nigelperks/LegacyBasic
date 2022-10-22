@@ -10,10 +10,11 @@
 #include "source.h"
 #include "parse.h"
 #include "run.h"
+#include "interactive.h"
 #include "utils.h"
 
 #define TITLE "Legacy BASIC"
-#define VERSION "1.0.2"
+#define VERSION "2.0.0"
 #define COPYRIGHT "Copyright (c) 2022 Nigel Perks"
 
 #ifdef UNIT_TEST
@@ -51,7 +52,7 @@ int main(int argc, char* argv[]) {
       mode = RUN;
 #ifdef UNIT_TEST
     else if (strcmp(arg, "--unit-tests") == 0 || strcmp(arg, "-unittest") == 0)
-      mode = TEST;
+      mode = TEST, report_memory = true;
 #endif
     else if (strcmp(arg, "--report-memory") == 0 || strcmp(arg, "-m") == 0)
       report_memory = true;
@@ -75,9 +76,6 @@ int main(int argc, char* argv[]) {
       fatal("unexpected argument: %s\n", arg);
   }
 
-  if (name == NULL && mode != TEST)
-    help(false);
-
   if (!quiet)
     print_version();
 
@@ -86,23 +84,33 @@ int main(int argc, char* argv[]) {
     unit_tests();
   else
 #endif
+  if (name == NULL)
+    interact();
+  else
   {
     SOURCE* source = load_source_file(name);
+    if (source == NULL)
+      exit(EXIT_FAILURE);
     if (mode == LIST) {
       for (unsigned i = 0; i < source_lines(source); i++)
         printf("%5u %s\n", source_linenum(source, i), source_text(source, i));
     }
     else {
-      BCODE* bcode = parse(source, recognise_keyword_prefixes);
-      switch (mode) {
-        case CODE:
-          print_bcode(bcode, stdout);
-          break;
-        case RUN:
-          run(bcode, trace_basic, trace_for, randomize);
-          break;
+      ENV* env = new_environment();
+      BCODE* bcode = parse_source(source, env->names, recognise_keyword_prefixes);
+      if (bcode) {
+        switch (mode) {
+          case CODE:
+            print_bcode(bcode, source, env->names, stdout);
+            break;
+          case RUN: {
+            run(bcode, env, source, trace_basic, trace_for, randomize);
+            break;
+          }
+        }
+        delete_bcode(bcode);
       }
-      delete_bcode(bcode);
+      delete_environment(env);
     }
     delete_source(source);
   }
@@ -120,8 +128,6 @@ static void print_version() {
 }
 
 static void help(bool full) {
-  print_version();
-
   printf("Usage: %s [options] name.bas\n\n", progname);
 
   puts("--code, -c");
@@ -204,6 +210,9 @@ CuSuite* source_test_suite(void);
 CuSuite* lexer_test_suite(void);
 CuSuite* bcode_test_suite(void);
 CuSuite* emit_test_suite(void);
+CuSuite* arrays_test_suite(void);
+CuSuite* keyword_test_suite(void);
+CuSuite* paren_test_suite(void);
 
 static void unit_tests(void) {
   CuString* output = CuStringNew();
@@ -216,6 +225,9 @@ static void unit_tests(void) {
   CuSuiteAddSuite(suite, lexer_test_suite());
   CuSuiteAddSuite(suite, bcode_test_suite());
   CuSuiteAddSuite(suite, emit_test_suite());
+  CuSuiteAddSuite(suite, arrays_test_suite());
+  CuSuiteAddSuite(suite, keyword_test_suite());
+  CuSuiteAddSuite(suite, paren_test_suite());
 
   CuSuiteRun(suite);
   CuSuiteSummary(suite, output);

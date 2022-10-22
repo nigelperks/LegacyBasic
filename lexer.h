@@ -4,11 +4,13 @@
 #pragma once
 
 #include <stdbool.h>
+#include "keyword.h"
 #include "source.h"
 
 typedef struct {
-  const SOURCE* source;
-  unsigned line;
+  const char* name;
+  const KEYWORD* keywords;
+  unsigned lineno;
   const char* text;
   unsigned pos;
   unsigned token_pos;
@@ -18,13 +20,17 @@ typedef struct {
   char word[128];
 } LEX;
 
-LEX* new_lex(const SOURCE*, bool recognise_keyword_prefixes);
+LEX* new_lex(const char* name, const KEYWORD* keywords, bool recognise_keyword_prefixes);
 void delete_lex(LEX*);
 
-void lex_line(LEX*, unsigned line);
+int lex_line(LEX*, unsigned lineno, const char* text);
+
+int lex_peek(LEX*);
 
 unsigned lex_line_num(LEX*);
 const char* lex_line_text(LEX*);
+const char* lex_remaining(LEX*);
+bool lex_unsigned(LEX*, unsigned *val);
 
 int lex_next(LEX*);
 int lex_token(LEX*);

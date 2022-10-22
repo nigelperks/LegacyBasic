@@ -22,6 +22,6 @@ void delete_stringlist(STRINGLIST*);
 unsigned stringlist_count(const STRINGLIST*);
 const char* stringlist_item(const STRINGLIST*, unsigned);
 unsigned stringlist_append(STRINGLIST*, const char*);
-unsigned stringlist_entry_case_insensitive(STRINGLIST*, const char*);
+unsigned name_entry(STRINGLIST*, const char*); // for case-insensitive BASIC
 
 #endif // STRINGLIST_H

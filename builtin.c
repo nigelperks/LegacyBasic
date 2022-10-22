@@ -7,6 +7,7 @@
 #include "utils.h"
 #include "os.h"
 
+// used in test_insert_builtins() in paren.c
 BUILTIN builtins[] = {
   { "ABS",    TYPE_NUM, "n",   B_ABS },
   { "ASC",    TYPE_NUM, "s",   B_ASC },

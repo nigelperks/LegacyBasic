@@ -2,7 +2,7 @@
 CC := gcc
 CCFLAGS := -DLINUX
 RELFLAGS := -O2
-DBGFLAGS := -g
+DBGFLAGS := -g -DUNIT_TEST
 LIBS := -lm
 CCOBJFLAGS := $(CCFLAGS) -c
 
