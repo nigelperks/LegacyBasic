@@ -1,5 +1,5 @@
 // Legacy BASIC
-// Copyright (c) 2022 Nigel Perks
+// Copyright (c) 2022-3 Nigel Perks
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -13,48 +13,11 @@
 #include <setjmp.h>
 #include <signal.h>
 #include "run.h"
+#include "bcode.h"
 #include "paren.h"
 #include "utils.h"
 #include "interrupt.h"
-
-ENV* new_environment(void) {
-  ENV* env = emalloc(sizeof *env);
-  env->names = new_stringlist();
-  env->numvars.count = 0;
-  env->strvars.count = 0;
-  init_paren_symbols(&env->paren);
-  return env;
-}
-
-void delete_environment(ENV* env) {
-  if (env) {
-    for (unsigned i = 0; i < env->strvars.count; i++)
-      efree(env->strvars.vars[i].val);
-    deinit_paren_symbols(&env->paren);
-    delete_stringlist(env->names);
-    efree(env);
-  }
-}
-
-void clear_code_dependent_environment(ENV* env) {
-  assert(env != NULL);
-  delete_defs(&env->paren);
-}
-
-void clear_environment(ENV* env) {
-  assert(env != NULL);
-  env->numvars.count = 0;
-  for (unsigned i = 0; i < env->strvars.count; i++)
-      efree(env->strvars.vars[i].val);
-  env->strvars.count = 0;
-  deinit_paren_symbols(&env->paren);
-  deinit_stringlist(env->names);
-}
-
-struct gosub {
-  unsigned pc;
-  unsigned source_line;
-};
+#include "parse.h"
 
 #define MAX_NUM_STACK (16)
 #define MAX_STR_STACK (8)
@@ -62,13 +25,20 @@ struct gosub {
 #define MAX_FOR (8)
 #define TAB_SIZE (8)
 
-typedef struct {
-  BCODE* bc;
+struct vm {
+  SOURCE* program_source;
+  BCODE* program_bcode;
   ENV* env;
   const SOURCE* source;
+  const BCODE* bc;
   double stack[MAX_NUM_STACK];
   char* strstack[MAX_STR_STACK];
-  struct gosub retstack[MAX_RETURN_STACK];
+  struct gosub {
+    const SOURCE* source;
+    unsigned source_line;
+    const BCODE* bcode;
+    unsigned pc;
+  } retstack[MAX_RETURN_STACK];
   bool stopped;
   unsigned pc;
   unsigned sp;
@@ -78,10 +48,12 @@ typedef struct {
   unsigned source_line;
   // FOR
   struct for_loop {
-    unsigned line;
+    const SOURCE* source;
+    unsigned source_line;
     int var;
     double step;
     double limit;
+    const BCODE* bc;
     unsigned pc;
   } for_stack[MAX_FOR];
   unsigned for_sp;
@@ -89,7 +61,9 @@ typedef struct {
   unsigned data;
   // FN
   struct {
+    const BCODE* bc;
     unsigned pc;
+    const SOURCE* source;
     unsigned source_line;
     unsigned numvars_count;
   } fn;
@@ -98,6 +72,7 @@ typedef struct {
   int inp;
   unsigned input_pc;
   // behaviour options
+  bool keywords_anywhere;
   bool trace_basic;
   bool trace_for;
   unsigned short array_base;
@@ -106,14 +81,38 @@ typedef struct {
   bool strict_on;
   bool strict_variables;
   bool input_prompt;
+  bool verbose;
   // run-time error-catching
   jmp_buf errjmp;
-} VM;
+};
 
-static void init_vm(VM* vm, BCODE* bc, ENV* env, const SOURCE* source, bool trace_basic, bool trace_for) {
-  vm->bc = bc;
-  vm->env = env;
-  vm->source = source;
+// determine whether control state refers to immediate-mode code
+// rather than just program code
+static bool immediate_state(VM* vm) {
+  for (unsigned i = 0; i < vm->rsp; i++) {
+    assert(vm->retstack[i].bcode != NULL);
+    if (vm->retstack[i].bcode != vm->program_bcode)
+      return true;
+  }
+
+  for (unsigned i = 0; i < vm->for_sp; i++) {
+    assert(vm->for_stack[i].bc != NULL);
+    if (vm->for_stack[i].bc != vm->program_bcode)
+      return true;
+  }
+
+  if (vm->fn.bc != NULL && vm->fn.bc != vm->program_bcode)
+    return true;
+
+  return false;
+}
+
+// reset control state so that no GOSUB, FOR, function call is in progress
+static void reset_vm(VM* vm) {
+  while (vm->ssp > 0) {
+    vm->ssp--;
+    efree(vm->strstack[vm->ssp]);
+  }
   vm->stopped = false;
   vm->pc = 0;
   vm->sp = 0;
@@ -121,50 +120,59 @@ static void init_vm(VM* vm, BCODE* bc, ENV* env, const SOURCE* source, bool trac
   vm->rsp = 0;
   vm->col = 1;
   vm->source_line = 0;
-  vm->trace_basic = trace_basic;
-  vm->trace_for = trace_for;
-  vm->array_base = 0;
   vm->for_sp = 0;
   vm->data = 0;
-  vm->fn.pc = -1;
+  vm->fn.bc = NULL;
   vm->inp = -1;
   vm->input_pc = 0;
-  vm->strict_dim = false;
-  vm->strict_for = false;
-  vm->strict_on = false;
-  vm->strict_variables = false;
-  vm->input_prompt = true;
 }
 
-static void deinit_vm(VM* vm) {
-  while (vm->ssp > 0) {
-    vm->ssp--;
-    efree(vm->strstack[vm->ssp]);
-  }
-  vm->stopped = true;
-  vm->pc = vm->bc->used;
-  vm->sp = 0;
-  vm->rsp = 0;
-  vm->col = 1;
-  vm->source_line = 0;
-  vm->for_sp = 0;
-  vm->data = 0;
-  vm->fn.pc = -1;
-  vm->input[0] = '\0';
-  vm->inp = 0;
-}
-
-static VM* new_vm(BCODE* bc, ENV* env, const SOURCE* source, bool trace_basic, bool trace_for) {
+VM* new_vm(bool keywords_anywhere, bool trace_basic, bool trace_for) {
   VM* vm = ecalloc(1, sizeof *vm);
-  init_vm(vm, bc, env, source, trace_basic, trace_for);
+  vm->env = new_environment_with_builtins();
+  reset_vm(vm);
+  vm->keywords_anywhere = keywords_anywhere;
+  vm->trace_basic = trace_basic;
+  vm->trace_for = trace_for;
+  vm->input_prompt = true;
   return vm;
 }
 
-static void delete_vm(VM* vm) {
+void delete_vm(VM* vm) {
   if (vm) {
-    deinit_vm(vm);
+    reset_vm(vm);
     efree(vm);
   }
+}
+
+// Flag source program as changed and compiled program as out of date.
+// Do not clear environment.
+static void program_changed(VM* vm) {
+  if (vm->program_bcode) {
+    delete_bcode(vm->program_bcode);
+    vm->program_bcode = NULL;
+  }
+}
+
+// If a source line exists with the given line number, delete it,
+// and flag the program as changed since the last compilation.
+void vm_delete_source_line(VM* vm, unsigned num) {
+  assert(vm != NULL);
+  if (vm->program_source) {
+    unsigned i;
+    if (find_source_linenum(vm->program_source, num, &i)) {
+      delete_source_line(vm->program_source, i);
+      program_changed(vm);
+    }
+  }
+}
+
+void vm_enter_source_line(VM* vm, unsigned num, const char* text) {
+  if (vm->program_source == NULL)
+    vm->program_source = new_source(NULL);
+
+  enter_source_line(vm->program_source, num, text);
+  program_changed(vm);
 }
 
 static void run_error(VM* vm, const char* fmt, ...) {
@@ -455,17 +463,91 @@ static void execute(VM*);
 
 static const char STRING_TOO_LONG[] = "string too long\n";
 
-void run(BCODE* bc, ENV* env, const SOURCE* source, bool trace_basic, bool trace_for, bool randomize) {
-  assert(bc != NULL);
-  VM* vm = new_vm(bc, env, source, trace_basic, trace_for);
+void vm_new_program(VM* vm) {
+  assert(vm != NULL);
+  if (vm->program_source)
+    clear_source(vm->program_source);
+  program_changed(vm);
+}
 
-  insert_builtins(&vm->env->paren, env->names);
+void vm_take_source(VM* vm, SOURCE* source) {
+  assert(vm != NULL);
+  assert(source != NULL);
+  if (vm->program_source)
+    clear_source(vm->program_source);
+  vm->program_source = source;
+  program_changed(vm);
+}
 
-  if (randomize)
-    srand((unsigned)time(NULL));
+unsigned vm_source_lines(const VM* vm) {
+  assert(vm != NULL);
+  return vm->program_source ? source_lines(vm->program_source) : 0;
+}
 
+unsigned vm_source_linenum(const VM* vm, unsigned index) {
+  assert(vm != NULL);
+  assert(vm->program_source != NULL);
+  return source_linenum(vm->program_source, index);
+}
+
+const char* vm_source_text(const VM* vm, unsigned index) {
+  assert(vm != NULL);
+  assert(vm->program_source != NULL);
+  return source_text(vm->program_source, index);
+}
+
+void vm_new_environment(VM* vm) {
+  assert(vm != NULL);
+  delete_environment(vm->env);
+  vm->env = new_environment_with_builtins();
+}
+
+void vm_clear_environment(VM* vm) {
+  assert(vm != NULL);
+  clear_environment(vm->env);
+}
+
+static bool ensure_program_compiled(VM*);
+static void run(VM*);
+
+void run_immediate(VM* vm, const SOURCE* source, bool keywords_anywhere) {
+  assert(vm != NULL);
+  assert(source != NULL);
+
+  if (ensure_program_compiled(vm)) {
+    BCODE* bcode = parse_source(source, vm->env->names, keywords_anywhere);
+    if (bcode) {
+      vm->source = source;
+      vm->source_line = 0;
+      vm->bc = bcode;
+      run(vm);
+      if (immediate_state(vm))
+        reset_vm(vm);
+      delete_bcode(bcode);
+    }
+  }
+}
+
+void run_program(VM* vm) {
+  assert(vm != NULL);
+
+  if (vm->program_source == NULL)
+    return;
+
+  if (ensure_program_compiled(vm)) {
+    reset_vm(vm);
+    vm->source = vm->program_source;
+    vm->source_line = 0;
+    vm->bc = vm->program_bcode;
+    run(vm);
+  }
+}
+
+static void run(VM* vm) {
+  vm->pc = 0;
+  vm->stopped = false;
   if (setjmp(vm->errjmp) == 0) {
-    while (vm->pc < bc->used && !vm->stopped && !interrupted)
+    while (vm->pc < vm->bc->used && !vm->stopped && !interrupted)
       execute(vm);
   }
 
@@ -481,19 +563,43 @@ void run(BCODE* bc, ENV* env, const SOURCE* source, bool trace_basic, bool trace
       struct for_loop * f = &vm->for_stack[vm->for_sp-1];
       const char* name = numvar_name(vm, f->var);
       fprintf(stderr, "FOR without NEXT: %s\n", name);
-      print_source_line(vm->source, f->line, stderr);
+      print_source_line(f->source, f->source_line, stderr);
       putc('\n', stderr);
     }
   }
+}
 
-  delete_vm(vm);
+// Recompile the stored program if its source has changed since last compilation.
+// Return false on compilation error, true otherwise.
+static bool ensure_program_compiled(VM* vm) {
+  assert(vm != NULL);
+
+  if (vm->program_source != NULL && vm->program_bcode == NULL) {
+    if (vm->verbose)
+      puts("Compiling...");
+    reset_vm(vm);
+    vm->program_bcode = parse_source(vm->program_source, vm->env->names, vm->keywords_anywhere);
+    return vm->program_bcode != NULL;
+  }
+
+  return true;
+}
+
+void vm_print_bcode(VM* vm) {
+  assert(vm != NULL);
+
+  if (vm->program_source == NULL)
+    return;
+
+  if (ensure_program_compiled(vm))
+    print_bcode(vm->program_bcode, vm->program_source, vm->env->names, stdout);
 }
 
 static unsigned find_basic_line(VM* vm, unsigned basic_line) {
-  unsigned source_line;
-  if (!bcode_find_basic_line(vm->bc, basic_line, vm->source, &source_line))
+  unsigned bcode_line;
+  if (!bcode_find_basic_line(vm->program_bcode, basic_line, vm->program_source, &bcode_line))
     run_error(vm, "Line not found: %u\n", basic_line);
-  return source_line;
+  return bcode_line;
 }
 
 static void check_paren_kind(VM* vm, const PAREN_SYMBOL* sym, int kind) {
@@ -534,7 +640,7 @@ static void execute(VM* vm) {
       break;
     // whole environment
     case B_CLEAR:
-      clear_environment(vm->env);
+      vm_clear_environment(vm);
       break;
     // number
     case B_PUSH_NUM:
@@ -770,6 +876,8 @@ static void execute(VM* vm) {
       return;
     case B_GOTO:
       vm->pc = find_basic_line(vm, i->u.line);
+      vm->bc = vm->program_bcode;
+      vm->source = vm->program_source;
       return;
     case B_GOTRUE:
       if (pop(vm)) {
@@ -780,17 +888,23 @@ static void execute(VM* vm) {
     case B_GOSUB:
       if (vm->rsp >= MAX_RETURN_STACK)
         run_error(vm, "GOSUB is nested too deeply\n");
-      vm->retstack[vm->rsp].pc = vm->pc;
+      vm->retstack[vm->rsp].source = vm->source;
       vm->retstack[vm->rsp].source_line = vm->source_line;
+      vm->retstack[vm->rsp].bcode = vm->bc;
+      vm->retstack[vm->rsp].pc = vm->pc;
       vm->rsp++;
       vm->pc = find_basic_line(vm, i->u.line);
+      vm->bc = vm->program_bcode;
+      vm->source = vm->program_source;
       return;
     case B_RETURN:
       if (vm->rsp == 0)
         run_error(vm, "RETURN without GOSUB\n");
       vm->rsp--;
-      vm->pc = vm->retstack[vm->rsp].pc;
+      vm->source = vm->retstack[vm->rsp].source;
       vm->source_line = vm->retstack[vm->rsp].source_line;
+      vm->bc = vm->retstack[vm->rsp].bcode;
+      vm->pc = vm->retstack[vm->rsp].pc;
       break;
     case B_FOR: {
       if (vm->trace_for)
@@ -823,7 +937,9 @@ static void execute(VM* vm) {
       f->step = pop(vm);
       f->limit = pop(vm);
       vm->env->numvars.vars[f->var].val = pop(vm);
-      f->line = vm->source_line;
+      f->source = vm->source;
+      f->source_line = vm->source_line;
+      f->bc = vm->bc;
       f->pc = vm->pc;
       if (vm->trace_for)
         dump_for_stack(vm, "final stack");
@@ -858,7 +974,10 @@ static void execute(VM* vm) {
       }
       else {
         vm->env->numvars.vars[f->var].val = x;
+        vm->bc = f->bc;
         vm->pc = f->pc;
+        vm->source = f->source;
+        vm->source_line = f->source_line;
       }
       if (vm->trace_for)
         dump_for_stack(vm, "final stack");
@@ -876,7 +995,10 @@ static void execute(VM* vm) {
         vm->for_sp--;
       else {
         vm->env->numvars.vars[f->var].val = x;
+        vm->bc = f->bc;
         vm->pc = f->pc;
+        vm->source = f->source;
+        vm->source_line = f->source_line;
       }
       if (vm->trace_for)
         dump_for_stack(vm, "final stack");
@@ -886,11 +1008,13 @@ static void execute(VM* vm) {
       PAREN_SYMBOL* sym = lookup_paren_name(&vm->env->paren, i->u.param.name);
       if (sym) {
         check_paren_kind(vm, sym, PK_DEF);
-        replace_def(sym, i->u.param.params, vm->source_line, vm->pc);
+        if (!replace_def(sym, i->u.param.params, vm->source_line, vm->bc, vm->pc))
+          run_error(vm, "invalid DEF code\n");
       }
       else {
         int type = string_name(stringlist_item(vm->env->names, i->u.param.name)) ? TYPE_STR : TYPE_NUM;
-        insert_def(&vm->env->paren, i->u.param.name, type, i->u.param.params, vm->source_line, vm->pc);
+        if (!insert_def(&vm->env->paren, i->u.param.name, type, i->u.param.params, vm->source_line, vm->bc, vm->pc))
+          run_error(vm, "invalid DEF code\n");
       }
       do {
         vm->pc++;
@@ -1203,7 +1327,7 @@ static char* convert(const char* s, double *val) {
   while (*s == ' ' || *s == '\t')
     s++;
 
-  if (isdigit(*s) || *s == '.' || *s == '-') {
+  if (isdigit(*s) || *s == '.' || *s == '-' || *s == '+') {
     char* end = NULL;
     *val = strtod(s, &end);
     while (*end == ' ' || *end == '\t')
@@ -1229,7 +1353,7 @@ static const char* find_data(VM* vm) {
 }
 
 static void call_def(VM* vm, const struct def * def, unsigned name, unsigned params) {
-  if (vm->fn.pc != -1)
+  if (vm->fn.bc)
     run_error(vm, "nested user-defined function calls are not allowed\n");
 
   if (params != def->params)
@@ -1238,11 +1362,15 @@ static void call_def(VM* vm, const struct def * def, unsigned name, unsigned par
   if (vm->pc + params >= vm->bc->used)
     run_error(vm, "program corrupt: missing parameters: %s\n", stringlist_item(vm->env->names, name));
 
+  vm->fn.bc = vm->bc;
   vm->fn.pc = vm->pc;
+  vm->fn.source = vm->source;
   vm->fn.source_line = vm->source_line;
   vm->fn.numvars_count = vm->env->numvars.count;
 
-  vm->pc = def->pc;
+  vm->bc = def->code;
+  vm->pc = 0;
+  vm->source = NULL;
   vm->source_line = def->source_line;
 
   // top of stack is final parameter
@@ -1260,12 +1388,14 @@ static void call_def(VM* vm, const struct def * def, unsigned name, unsigned par
 }
 
 static void end_def(VM* vm) {
-  if (vm->fn.pc == -1)
+  if (vm->fn.bc == NULL)
     run_error(vm, "unexpected END DEF\n");
+  vm->bc = vm->fn.bc;
   vm->pc = vm->fn.pc;
+  vm->source = vm->fn.source;
   vm->source_line = vm->fn.source_line;
   vm->env->numvars.count = vm->fn.numvars_count;
-  vm->fn.pc = -1;
+  vm->fn.bc = NULL;
 }
 
 static int compare_strings(VM* vm) {

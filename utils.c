@@ -23,6 +23,15 @@ void fatal(const char* fmt, ...) {
   exit(EXIT_FAILURE);
 }
 
+void error(const char* fmt, ...) {
+  fflush(stdout);
+  va_list ap;
+  va_start(ap, fmt);
+  vprintf(fmt, ap);
+  va_end(ap);
+  putchar('\n');
+}
+
 unsigned long malloc_count;
 unsigned long free_count;
 

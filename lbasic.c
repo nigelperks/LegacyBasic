@@ -1,11 +1,12 @@
 // Legacy BASIC
 // Basic interpreter for running 70s/80s microcomputer Basic games.
-// Copyright (c) 2022 Nigel Perks
+// Copyright (c) 2022-3 Nigel Perks
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdarg.h>
 #include <string.h>
+#include <time.h>
 #include <assert.h>
 #include "source.h"
 #include "parse.h"
@@ -14,8 +15,8 @@
 #include "utils.h"
 
 #define TITLE "Legacy BASIC"
-#define VERSION "2.0.0"
-#define COPYRIGHT "Copyright (c) 2022 Nigel Perks"
+#define VERSION "3.0.0"
+#define COPYRIGHT "Copyright (c) 2022-3 Nigel Perks"
 
 #ifdef UNIT_TEST
 static void unit_tests(void);
@@ -23,14 +24,17 @@ static void unit_tests(void);
 
 static void print_version(void);
 static void help(bool full);
+static void list_file(const char* name);
+static void compile_file(int mode, const char* name, bool keywords_anywhere, bool trace_basic, bool trace_for);
+
+enum mode { LIST, PARSE, CODE, RUN, TEST };
 
 int main(int argc, char* argv[]) {
-  enum { LIST, PARSE, CODE, RUN, TEST } mode = RUN;
+  enum mode mode = RUN;
   const char* name = NULL;
   bool trace_basic = false;
   bool trace_for = false;
-  bool recognise_keyword_prefixes = false;
-  bool randomize = false;
+  bool keywords_anywhere = false;
   bool quiet = false;
   bool report_memory = false;
 
@@ -61,9 +65,9 @@ int main(int argc, char* argv[]) {
     else if (strcmp(arg, "--trace-for") == 0 || strcmp(arg, "-f") == 0)
       trace_for = true;
     else if (strcmp(arg, "--keywords-anywhere") == 0 || strcmp(arg, "-k") == 0)
-      recognise_keyword_prefixes = true;
+      keywords_anywhere = true;
     else if (strcmp(arg, "--randomize") == 0 || strcmp(arg, "-z") == 0)
-      randomize = true;
+      srand((unsigned)time(NULL));
     else if (strcmp(arg, "--quiet") == 0 || strcmp(arg, "-q") == 0)
       quiet = true;
     else if (strcmp(arg, "--version") == 0 || strcmp(arg, "-v") == 0)
@@ -85,35 +89,11 @@ int main(int argc, char* argv[]) {
   else
 #endif
   if (name == NULL)
-    interact();
+    interact(keywords_anywhere, trace_basic, trace_for);
+  else if (mode == LIST)
+    list_file(name);
   else
-  {
-    SOURCE* source = load_source_file(name);
-    if (source == NULL)
-      exit(EXIT_FAILURE);
-    if (mode == LIST) {
-      for (unsigned i = 0; i < source_lines(source); i++)
-        printf("%5u %s\n", source_linenum(source, i), source_text(source, i));
-    }
-    else {
-      ENV* env = new_environment();
-      BCODE* bcode = parse_source(source, env->names, recognise_keyword_prefixes);
-      if (bcode) {
-        switch (mode) {
-          case CODE:
-            print_bcode(bcode, source, env->names, stdout);
-            break;
-          case RUN: {
-            run(bcode, env, source, trace_basic, trace_for, randomize);
-            break;
-          }
-        }
-        delete_bcode(bcode);
-      }
-      delete_environment(env);
-    }
-    delete_source(source);
-  }
+    compile_file(mode, name, keywords_anywhere, trace_basic, trace_for);
 
   if (report_memory) {
     printf("malloc: %10lu\n", malloc_count);
@@ -197,6 +177,34 @@ static void help(bool full) {
     puts("    Print version information and exit.\n");
 
   exit(EXIT_FAILURE);
+}
+
+static void list_file(const char* name) {
+  SOURCE* source = load_source_file(name);
+  if (source == NULL)
+    exit(EXIT_FAILURE);
+  for (unsigned i = 0; i < source_lines(source); i++)
+    printf("%5u %s\n", source_linenum(source, i), source_text(source, i));
+}
+
+static void compile_file(int mode, const char* name, bool keywords_anywhere, bool trace_basic, bool trace_for) {
+  SOURCE* source = load_source_file(name);
+  if (source == NULL)
+    exit(EXIT_FAILURE);
+
+  VM* vm = new_vm(keywords_anywhere, trace_basic, trace_for);
+  vm_take_source(vm, source);
+
+  switch (mode) {
+    case CODE:
+      vm_print_bcode(vm);
+      break;
+    case RUN:
+      run_program(vm);
+      break;
+  }
+
+  delete_vm(vm);
 }
 
 #ifdef UNIT_TEST

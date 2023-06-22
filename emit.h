@@ -1,5 +1,5 @@
 // Legacy BASIC
-// Copyright (c) 2022 Nigel Perks
+// Copyright (c) 2022-3 Nigel Perks
 
 #pragma once
 
@@ -14,5 +14,4 @@ void emit_var(BCODE*, unsigned op, unsigned name);
 unsigned emit_param(BCODE*, unsigned op, unsigned name, unsigned parameters);
 unsigned emit_count(BCODE*, unsigned op, unsigned count);
 
-//void patch_parameters(BCODE*, unsigned index, unsigned parameters);
 void patch_count(BCODE*, unsigned index, unsigned count);

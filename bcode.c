@@ -1,9 +1,10 @@
 // Legacy BASIC
-// Copyright (c) 2022 Nigel Perks
+// Copyright (c) 2022-3 Nigel Perks
 
 #include <stdlib.h>
 #include <assert.h>
 #include "bcode.h"
+#include "emit.h"
 #include "utils.h"
 
 static const struct {
@@ -189,18 +190,44 @@ void print_binst(const BCODE* p, unsigned j, const SOURCE* source, const STRINGL
   putc('\n', fp);
 }
 
-bool bcode_find_basic_line(const BCODE* p, unsigned basic_line, const SOURCE* source, unsigned *source_line) {
-  assert(p != NULL);
-  for (unsigned i = 0; i < p->used; i++) {
-    if (p->inst[i].op == B_LINE) {
-      if (source_linenum(source, p->inst[i].u.line) == basic_line) {
-        *source_line = i;
-        return true;
+bool bcode_find_basic_line(const BCODE* p, unsigned basic_line, const SOURCE* source, unsigned *bcode_line) {
+  if (p) {
+    assert(source != NULL);
+    for (unsigned i = 0; i < p->used; i++) {
+      if (p->inst[i].op == B_LINE) {
+        if (source_linenum(source, p->inst[i].u.line) == basic_line) {
+          *bcode_line = i;
+          return true;
+        }
       }
     }
   }
   return false;
 }
+
+static unsigned def_end(const BCODE* code, unsigned pc) {
+  assert(code != NULL);
+  assert(pc < code->used);
+
+  while (pc < code->used && code->inst[pc].op != B_END_DEF)
+    pc++;
+  return pc;
+}
+
+BCODE* bcode_copy_def(const BCODE* src, unsigned start) {
+  unsigned end = def_end(src, start);
+  unsigned len = end - start;
+  unsigned size = len + 1;
+  BCODE* dst = new_bcode();
+  dst->inst = emalloc(size * sizeof dst->inst[0]);
+  dst->allocated = size;
+  for (unsigned i = 0; i < len; i++)
+    dst->inst[i] = src->inst[start + i];
+  dst->inst[len].op = B_END_DEF;
+  dst->used = size;
+  return dst;
+}
+
 
 #ifdef UNIT_TEST
 
@@ -260,9 +287,61 @@ static void test_bcode(CuTest* tc) {
   delete_stringlist(names);
 }
 
+static void test_def_end(CuTest* tc) {
+  BCODE* bc = new_bcode();
+
+  emit(bc, B_END_DEF);
+  CuAssertIntEquals(tc, 0, def_end(bc, 0));
+
+  emit(bc, B_ADD);
+  CuAssertIntEquals(tc, 2, def_end(bc, 1));
+
+  emit(bc, B_SUB);
+  emit(bc, B_END_DEF);
+  CuAssertIntEquals(tc, 3, def_end(bc, 1));
+
+  delete_bcode(bc);
+}
+
+static void test_bcode_copy_def(CuTest* tc) {
+  BCODE* src;
+  BCODE* dst;
+
+  src = new_bcode();
+  emit(src, B_ADD);
+  emit(src, B_SUB);
+  emit(src, B_END_DEF);
+  emit(src, B_MUL);
+
+  // implicit end
+  dst = bcode_copy_def(src, 3);
+  CuAssertPtrNotNull(tc, dst);
+  CuAssertIntEquals(tc, 2, dst->allocated);
+  CuAssertIntEquals(tc, 2, dst->used);
+  CuAssertPtrNotNull(tc, dst->inst);
+  CuAssertIntEquals(tc, B_MUL, dst->inst[0].op);
+  CuAssertIntEquals(tc, B_END_DEF, dst->inst[1].op);
+  delete_bcode(dst);
+
+  // explicit end
+  dst = bcode_copy_def(src, 0);
+  CuAssertPtrNotNull(tc, dst);
+  CuAssertIntEquals(tc, 3, dst->allocated);
+  CuAssertIntEquals(tc, 3, dst->used);
+  CuAssertPtrNotNull(tc, dst->inst);
+  CuAssertIntEquals(tc, B_ADD, dst->inst[0].op);
+  CuAssertIntEquals(tc, B_SUB, dst->inst[1].op);
+  CuAssertIntEquals(tc, B_END_DEF, dst->inst[2].op);
+  delete_bcode(dst);
+
+  delete_bcode(src);
+}
+
 CuSuite* bcode_test_suite(void) {
   CuSuite* suite = CuSuiteNew();
   SUITE_ADD_TEST(suite, test_bcode);
+  SUITE_ADD_TEST(suite, test_def_end);
+  SUITE_ADD_TEST(suite, test_bcode_copy_def);
   return suite;
 }
 

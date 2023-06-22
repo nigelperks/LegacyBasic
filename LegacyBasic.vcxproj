@@ -148,6 +148,7 @@
     <ClCompile Include="CuTest.c" />
     <ClCompile Include="def.c" />
     <ClCompile Include="emit.c" />
+    <ClCompile Include="env.c" />
     <ClCompile Include="interactive.c" />
     <ClCompile Include="interrupt.c" />
     <ClCompile Include="keyword.c" />
@@ -168,6 +169,7 @@
     <ClInclude Include="CuTest.h" />
     <ClInclude Include="def.h" />
     <ClInclude Include="emit.h" />
+    <ClInclude Include="env.h" />
     <ClInclude Include="interactive.h" />
     <ClInclude Include="interrupt.h" />
     <ClInclude Include="keyword.h" />

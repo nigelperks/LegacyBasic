@@ -34,19 +34,36 @@ To get full help on all the options, use --help-full.
 
 When LegacyBasic is run with no BASIC source file specified,
 immediate mode is entered.
-Most BASIC statements can be used interactively.
-Assignments to variables and arrays are persistent.
-DEF definitions last only within one command line: that is, as long as their code exists.
-Use BYE to return to the operating system.
 
-When code is running in interactive mode, CTRL-C should return to
-the BASIC prompt, rather than exiting the interpreter (tested on Windows and Ubuntu).
+Use BYE to return to the operating system.
 
 Enter a program line interactively by typing a line number:
 
     10 PRINT "HELLO! ";:GOTO 10
 
 There is no EDIT command or line editing: retype a line to replace it.
+
+Type a line number followed immediately by ENTER to delete that line.
+
+Most BASIC statements can be used interactively.
+Definitions of variables, arrays and DEF functions
+are shared between program and interactive environment.
+So a definition made in the program is available after it is run,
+in the interactive environment.
+And a definition made interactively is available in the program,
+if a program segment is entered with GOTO.
+However, RUN clears all definitions, as does CLEAR.
+
+If any change is made to the source program, it is recompiled when a statement
+is next executed, and the state of GOSUB/RETURN and FOR loops is cleared.
+Thus a GOTO or NEXT might continue a FOR loop in progress,
+but not after a program edit.
+
+The state of GOSUB/RETURN and FOR loops is also cleared
+if it would refer to an immediate statement that no longer exists.
+
+When code is running in interactive mode, CTRL-C should return to
+the BASIC prompt, rather than exiting the interpreter (tested on Windows and Ubuntu).
 
 Immediate mode commands are:
 
@@ -58,7 +75,7 @@ Immediate mode commands are:
     SAVE "prog.bas"
 
 
-### Example
+### Example 1
 
     > a$="Hello!"
     > ?a$
@@ -70,9 +87,33 @@ Immediate mode commands are:
     > for cent = 0 to 100 step 10:print cent, int((cent*9/5)+32):next
      0       32
     ...
-    > def double(x)=2*x:?double(1.3),double(-3)
+    > def double(x)=2*x
+    > ?double(1.3),double(-3)
      2.6     -6
     > bye
+
+
+### Example 2
+
+    > 10 FOR i = 1 TO 4
+    > 20 PRINT i
+    > 30 IF i = 2 THEN STOP
+    > 40 NEXT
+    > RUN
+     1
+     2
+    Stopped
+    > NEXT
+     3
+     4
+
+
+### Example 3
+
+    > 10 PRINT double(5.1)
+    > DEF double(x)=2*x
+    > GOTO 10
+     10.2
 
 
 ## REFERENCES
@@ -122,4 +163,4 @@ Original Linux support by yuppox.
 
 Bug reports are welcome to the email address in the git history.
 
-Nigel Perks, 2022.
+Nigel Perks, 2022-3.

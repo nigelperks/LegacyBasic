@@ -62,7 +62,7 @@ unsigned source_linenum(const SOURCE* src, unsigned line) {
 }
 
 void print_source_line(const SOURCE* source, unsigned line, FILE* fp) {
-  if (line < source_lines(source))
+  if (source != NULL && line < source_lines(source))
     fprintf(fp, "%u %s", source_linenum(source, line), source_text(source, line));
 }
 
@@ -254,6 +254,7 @@ SOURCE* wrap_source_text(const char* text) {
 }
 
 bool find_source_linenum(const SOURCE* source, unsigned num, unsigned *index) {
+  assert(source != NULL);
   for (unsigned i = 0; i < source->used; i++) {
     if (source->lines[i].num == num) {
       *index = i;

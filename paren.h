@@ -1,5 +1,5 @@
 // Legacy BASIC
-// Copyright (c) 2022 Nigel Perks
+// Copyright (c) 2022-3 Nigel Perks
 // Utility functions for handling parenthesised symbols (array, DEF, builtin):
 // A$(), FNA(), CHR$()
 
@@ -26,7 +26,7 @@ typedef struct {
 
 bool replace_numeric_array(PAREN_SYMBOL*, unsigned base, unsigned dimensions, unsigned max[]);
 bool replace_string_array(PAREN_SYMBOL*, unsigned base, unsigned dimensions, unsigned max[]);
-void replace_def(PAREN_SYMBOL*, unsigned params, unsigned source_line, unsigned pc);
+bool replace_def(PAREN_SYMBOL*, unsigned params, unsigned source_line, const BCODE*, unsigned pc);
 
 typedef struct {
   PAREN_SYMBOL* sym;
@@ -43,6 +43,4 @@ void insert_builtins(PAREN_SYMBOLS*, STRINGLIST* names);
 
 PAREN_SYMBOL* insert_numeric_array(PAREN_SYMBOLS*, unsigned name, unsigned base, unsigned dimensions, unsigned max[]);
 PAREN_SYMBOL* insert_string_array(PAREN_SYMBOLS*, unsigned name, unsigned base, unsigned dimensions, unsigned max[]);
-PAREN_SYMBOL* insert_def(PAREN_SYMBOLS*, unsigned name, int type, unsigned params, unsigned source_line, unsigned pc);
-
-void delete_defs(PAREN_SYMBOLS*);
+PAREN_SYMBOL* insert_def(PAREN_SYMBOLS*, unsigned name, int type, unsigned params, unsigned source_line, const BCODE*, unsigned pc);

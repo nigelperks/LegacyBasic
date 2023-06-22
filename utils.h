@@ -13,6 +13,7 @@ extern const char* progname;
 typedef unsigned short U16;
 
 void fatal(const char* fmt, ...);
+void error(const char* fmt, ...);
 
 void* emalloc(size_t);
 void* erealloc(void*, size_t);

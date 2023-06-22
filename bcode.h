@@ -1,5 +1,5 @@
 // Legacy BASIC
-// Copyright (c) 2022 Nigel Perks
+// Copyright (c) 2022-3 Nigel Perks
 
 #pragma once
 
@@ -149,4 +149,6 @@ BINST* bcode_next(BCODE*, unsigned op);
 void print_bcode(const BCODE*, const SOURCE*, const STRINGLIST* names, FILE*);
 void print_binst(const BCODE*, unsigned index, const SOURCE*, const STRINGLIST* names, FILE*);
 
-bool bcode_find_basic_line(const BCODE*, unsigned basic_line, const SOURCE*, unsigned *source_line);
+bool bcode_find_basic_line(const BCODE*, unsigned basic_line, const SOURCE*, unsigned *bcode_line);
+
+BCODE* bcode_copy_def(const BCODE*, unsigned start);

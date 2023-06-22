@@ -1,5 +1,5 @@
 // Legacy BASIC
-// Copyright (c) 2022 Nigel Perks
+// Copyright (c) 2022-3 Nigel Perks
 // Utility functions for handling parenthesised symbols (array, DEF, builtin):
 // A$(), FNA(), CHR$()
 
@@ -124,17 +124,23 @@ bool replace_string_array(PAREN_SYMBOL* sym, unsigned base, unsigned dimensions,
   return true;
 }
 
-PAREN_SYMBOL* insert_def(PAREN_SYMBOLS* p, unsigned name, int type, unsigned params, unsigned source_line, unsigned pc) {
+PAREN_SYMBOL* insert_def(PAREN_SYMBOLS* p, unsigned name, int type, unsigned params, unsigned source_line, const BCODE* bcode, unsigned pc) {
   PAREN_SYMBOL* sym = insert_paren_symbol(p, name, type, PK_DEF);
-  sym->u.def = new_def(params, source_line, pc);
-  return sym;
+  sym->u.def = new_def();
+  return replace_def(sym, params, source_line, bcode, pc) ? sym : NULL;
 }
 
-void replace_def(PAREN_SYMBOL* sym, unsigned params, unsigned source_line, unsigned pc) {
+bool replace_def(PAREN_SYMBOL* sym, unsigned params, unsigned source_line, const BCODE* bcode, unsigned pc) {
+  BCODE* code = bcode_copy_def(bcode, pc);
+  if (code == NULL)
+    return false;
+
   struct def * def = sym->u.def;
   def->params = params;
   def->source_line = source_line;
-  def->pc = pc;
+  delete_bcode(def->code);
+  def->code = code;
+  return true;
 }
 
 static void insert_builtin(PAREN_SYMBOLS* p, const BUILTIN* b, STRINGLIST* names) {
@@ -148,25 +154,11 @@ void insert_builtins(PAREN_SYMBOLS* p, STRINGLIST* names) {
     insert_builtin(p, b, names);
 }
 
-void delete_defs(PAREN_SYMBOLS* p) {
-  assert(p != NULL);
-  unsigned i = 0;
-  while (i < p->used) {
-    if (p->sym[i].kind == PK_DEF) {
-      delete_def(p->sym[i].u.def);
-      if (i < p->used - 1) // not the last item
-        p->sym[i] = p->sym[p->used - 1];
-      p->used--;
-    }
-    else
-      i++;
-  }
-}
-
 #ifdef UNIT_TEST
 
 #include <string.h>
 #include "CuTest.h"
+#include "emit.h"
 
 static void test_paren_kind(CuTest* tc) {
   CuAssertStrEquals(tc, "array", paren_kind(PK_ARRAY));
@@ -206,7 +198,7 @@ static void test_deinit_paren_symbol(CuTest* tc) {
 
   sym.kind = PK_DEF;
   sym.type = TYPE_NUM;
-  sym.u.def = new_def(1, 0, 30);
+  sym.u.def = new_def();
   deinit_paren_symbol(&sym);
   CuAssertIntEquals(tc, PK_DEF, sym.kind);
   CuAssertPtrEquals(tc, NULL, sym.u.def);
@@ -294,7 +286,12 @@ static void test_paren_symbols(CuTest* tc) {
   CuAssertPtrEquals(tc, ps.sym + 2, sym);
 
   // Insert user-defined function
-  sym = insert_def(&ps, 10, TYPE_NUM, 2, 3, 40);
+  BCODE* bc = new_bcode();
+  emit(bc, B_ADD);
+  emit(bc, B_SUB);
+  emit(bc, B_MUL);
+  emit(bc, B_END_DEF);
+  sym = insert_def(&ps, 10, TYPE_NUM, /*params*/ 2, /*line*/ 3, bc, /*pc*/ 1);
   CuAssertPtrNotNull(tc, sym);
   CuAssertTrue(tc, ps.allocated >= 4);
   CuAssertIntEquals(tc, 4, ps.used);
@@ -302,10 +299,18 @@ static void test_paren_symbols(CuTest* tc) {
   CuAssertIntEquals(tc, 10, sym->name);
   CuAssertIntEquals(tc, TYPE_NUM, sym->type);
   CuAssertIntEquals(tc, PK_DEF, sym->kind);
-  CuAssertPtrNotNull(tc, sym->u.def);
-  CuAssertIntEquals(tc, 2, sym->u.def->params);
-  CuAssertIntEquals(tc, 3, sym->u.def->source_line);
-  CuAssertIntEquals(tc, 40, sym->u.def->pc);
+  struct def * def = sym->u.def;
+  CuAssertPtrNotNull(tc, def);
+  CuAssertIntEquals(tc, 2, def->params);
+  CuAssertIntEquals(tc, 3, def->source_line);
+  CuAssertPtrNotNull(tc, def->code);
+  CuAssertTrue(tc, def->code != bc);
+  CuAssertIntEquals(tc, 3, def->code->allocated);
+  CuAssertIntEquals(tc, 3, def->code->used);
+  CuAssertPtrNotNull(tc, def->code->inst);
+  CuAssertIntEquals(tc, B_SUB, def->code->inst[0].op);
+  CuAssertIntEquals(tc, B_MUL, def->code->inst[1].op);
+  CuAssertIntEquals(tc, B_END_DEF, def->code->inst[2].op);
 
   // Redimension numeric array
   sym = &ps.sym[1];
@@ -337,28 +342,24 @@ static void test_paren_symbols(CuTest* tc) {
   CuAssertIntEquals(tc, 2, sym->u.strarr->size.max[1]);
   CuAssertIntEquals(tc, 1, sym->u.strarr->size.elements);
 
-  // Redefine function
+  // Redefine function to empty
   sym = &ps.sym[3];
-  replace_def(sym, 4, 9, 53);
+  replace_def(sym, /*params*/ 4, /*line*/ 9, bc, /*pc*/ 3);
   CuAssertIntEquals(tc, 10, sym->name);
   CuAssertIntEquals(tc, TYPE_NUM, sym->type);
   CuAssertIntEquals(tc, PK_DEF, sym->kind);
-  CuAssertPtrNotNull(tc, sym->u.def);
-  CuAssertIntEquals(tc, 4, sym->u.def->params);
-  CuAssertIntEquals(tc, 9, sym->u.def->source_line);
-  CuAssertIntEquals(tc, 53, sym->u.def->pc);
-
-  // Delete all DEFs only
-  CuAssertIntEquals(tc, 4, ps.used);
-  delete_defs(&ps);
-  CuAssertIntEquals(tc, 3, ps.used);
-  CuAssertIntEquals(tc, PK_BUILTIN, ps.sym[0].kind);
-  CuAssertIntEquals(tc, PK_ARRAY, ps.sym[1].kind);
-  CuAssertPtrNotNull(tc, ps.sym[1].u.numarr);
-  CuAssertIntEquals(tc, PK_ARRAY, ps.sym[2].kind);
-  CuAssertPtrNotNull(tc, ps.sym[2].u.strarr);
+  def = sym->u.def;
+  CuAssertPtrNotNull(tc, def);
+  CuAssertIntEquals(tc, 4, def->params);
+  CuAssertIntEquals(tc, 9, def->source_line);
+  CuAssertPtrNotNull(tc, def->code);
+  CuAssertIntEquals(tc, 1, def->code->allocated);
+  CuAssertIntEquals(tc, 1, def->code->used);
+  CuAssertPtrNotNull(tc, def->code->inst);
+  CuAssertIntEquals(tc, B_END_DEF, def->code->inst[0].op);
 
   // Clean up
+  delete_bcode(bc);
   deinit_paren_symbols(&ps);
 }
 

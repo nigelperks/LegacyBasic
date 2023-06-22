@@ -1,5 +1,5 @@
 // Legacy BASIC
-// Copyright (c) 2022 Nigel Perks
+// Copyright (c) 2022-3 Nigel Perks
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -36,22 +36,6 @@ BCODE* parse_source(const SOURCE* source, STRINGLIST* names, bool recognise_keyw
     for (unsigned i = 0; i < source_lines(source); i++)
       parse_line(&parser, i, source_linenum(source, i), source_text(source, i));
   }
-  else {
-    delete_bcode(parser.bcode);
-    parser.bcode = NULL;
-  }
-  delete_lex(parser.lex);
-  return parser.bcode;
-}
-
-BCODE* parse_text(const char* text, STRINGLIST* names, const char* name, bool recognise_keyword_prefixes) {
-  assert(text != NULL && names != NULL);
-  PARSER parser;
-  parser.lex = new_lex(name, basic_keywords, recognise_keyword_prefixes);
-  parser.bcode = new_bcode();
-  parser.names = names;
-  if (setjmp(parser.errjmp) == 0)
-    parse_line(&parser, 0, 0, text);
   else {
     delete_bcode(parser.bcode);
     parser.bcode = NULL;

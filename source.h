@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <stdio.h>
 #include <stdbool.h>
 
 struct source_line {
