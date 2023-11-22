@@ -11,7 +11,9 @@ First change to the source directory containing `CMakeLists.txt`.
 
 ### Building on Windows
 
-Using Visual Studio 17 2022 on 64-bit Windows for example:
+Using Visual Studio 17 2022 on 64-bit Windows for example.
+This is a multi-configuration generator.
+The configuration (Debug, Release) is selected at build time.
 
 ```
 md Build
@@ -36,11 +38,13 @@ cmake --install Build --config Release --prefix C:\Local
 
 ### Building on Linux
 
-Using makefiles for example:
+Using makefiles for example.
+This is a single-configuration generator.
+The configuration (Debug, Release) is selected at generation time.
 
 ```
 mkdir Release
-cmake -S . -B Release -G "Unix Makefiles"
+cmake -S . -B Release -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=Release
 cmake --build Release
 ```
 
