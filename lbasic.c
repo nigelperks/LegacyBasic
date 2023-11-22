@@ -8,15 +8,12 @@
 #include <string.h>
 #include <time.h>
 #include <assert.h>
+#include "config.h"
 #include "source.h"
 #include "parse.h"
 #include "run.h"
 #include "interactive.h"
 #include "utils.h"
-
-#define TITLE "Legacy BASIC"
-#define VERSION "3.0.0"
-#define COPYRIGHT "Copyright (c) 2022-3 Nigel Perks"
 
 #ifdef UNIT_TEST
 static void unit_tests(void);
@@ -104,7 +101,7 @@ int main(int argc, char* argv[]) {
 }
 
 static void print_version() {
-  printf("%s %s %s\n\n", TITLE, VERSION, COPYRIGHT);
+  printf("%s %u.%u.%u %s\n\n", TITLE, VERSION_MAJOR, VERSION_MINOR, VERSION_PATCH, COPYRIGHT);
 }
 
 static void help(bool full) {
