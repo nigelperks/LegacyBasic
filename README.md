@@ -3,15 +3,71 @@
 Legacy Basic is an interpreter for the legacy of 1970s-style microcomputer BASIC
 programs, especially text-based games.
 
+## HOW TO BUILD THE INTERPRETER
+
+CMake will generate makefiles and project files for both Windows and Linux.
+
+First change to the source directory containing `CMakeLists.txt`.
+
+### Building on Windows
+
+Using Visual Studio 17 2022 on 64-bit Windows for example:
+
+```
+md Build
+cmake -S . -B Build -G "Visual Studio 17 2022" -A x64 -T host=x64
+cmake --build Build --config Release
+```
+
+#### Testing
+
+```
+Build\Release\LegacyBasic -unittest
+test.py Build\Release\LegacyBasic.exe
+```
+
+#### Installing
+
+To install in `C:\Local\bin` for example:
+
+```
+cmake --install Build --config Release --prefix C:\Local
+```
+
+### Building on Linux
+
+Using makefiles for example:
+
+```
+mkdir Release
+cmake -S . -B Release -G "Unix Makefiles"
+cmake --build Release
+```
+
+#### Testing
+
+```
+Release/LegacyBasic -unittest
+python3 test.py Release/LegacyBasic
+```
+
+#### Installing
+
+To install in `/usr/local/bin` for example:
+
+```
+cmake --install Release --prefix /usr/local
+```
+
+## RUNNING A PROGRAM IN A FILE
+
 To run a BASIC program in a file:
 
-    LegacyBasic.exe game.bas       (Windows)
-    legacyBasic game.bas           (Linux)
+    LegacyBasic game.bas
 
 To use BASIC interactively (immediate mode), run:
 
-    LegacyBasic.exe                (Windows)
-    legacyBasic                    (Linux)
+    LegacyBasic
 
 with no BASIC file name.
 
@@ -23,7 +79,7 @@ I found target programs at:
 To play a game which uses random numbers, use the --randomize option to get
 different behaviour each time you play:
 
-    LegacyBasic.exe hangman.bas --randomize
+    LegacyBasic hangman.bas --randomize
 
 To run a program in which the keywords are crunched together, for example
 LETA=BANDC meaning LET A = B AND C, use the --keywords-anywhere option.
@@ -145,19 +201,9 @@ and functions, and FOR loops which break static nesting.
 
 I emphasised informative error messages at both parse and run time.
 
-To run unit tests (with CuTest) in a Debug build:
-
-    LegacyBasic.exe -unittest
-
-To run system tests on several test files:
-
-    test.py x64\Debug\LegacyBasic.exe
-
-specifying the executable interpreter to be tested.
-
 ## CONTRIBUTIONS
 
-Original Linux support by yuppox.
+Original Linux support (before `cmake`) by yuppox.
 
 ## BUG REPORTS
 
