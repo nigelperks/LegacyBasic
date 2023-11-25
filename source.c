@@ -77,16 +77,6 @@ static void source_error(SOURCE* src, const char* fmt, ...) {
   exit(EXIT_FAILURE);
 }
 
-static void source_warning(SOURCE* src, const char* fmt, ...) {
-  assert(src != NULL);
-  if (src->name)
-    fprintf(stderr, "%s(%u): ", src->name, src->used + 1);
-  va_list ap;
-  va_start(ap, fmt);
-  vfprintf(stderr, fmt, ap);
-  va_end(ap);
-}
-
 static void ensure_space(SOURCE* src) {
   assert(src->used <= src->allocated);
   if (src->used == src->allocated) {
@@ -118,7 +108,7 @@ static const char* parse_line_number(SOURCE* src, const char* line, unsigned *nu
   for (; isdigit(*s); s++)
     *num = *num * 10 + *s - '0';
   if (s == line)
-    source_warning(src, "line has no line number");
+    source_error(src, "line has no line number\n");
   // treat one space as pure delimiter but preserve any other indenting
   if (*s == ' ')
     s++;
