@@ -45,7 +45,7 @@ def check_output(source, typ):
         offer_new_reference(ref, typ)
 
 
-def offer_new_reference(ref, typ):
+def offer_new_reference(ref, typ, update=False):
   print("--------")
   with open(typ) as f:
     line = f.readline()
@@ -53,13 +53,14 @@ def offer_new_reference(ref, typ):
       print(line,end="")
       line = f.readline()
   print("--------")
-  print("Make new reference?")
-  if input().startswith("y"):
-    if os.path.isfile(ref):
-      os.remove(ref)
-    check_cmd("copy " + typ + " " + ref)
-  else:
-    sys.exit(1)
+  if update:
+    print("Make new reference?")
+    if input().startswith("y"):
+      if os.path.isfile(ref):
+        os.remove(ref)
+      check_cmd("copy " + typ + " " + ref)
+      return
+  sys.exit(1)
 
 
 def test(exe, source):
