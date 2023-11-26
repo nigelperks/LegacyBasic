@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.22.1)
-project(LegacyBasic DESCRIPTION "Legacy Basic" VERSION 3.0.0)
+project(LegacyBasic DESCRIPTION "Legacy Basic" VERSION 3.0.1)
 set(LegacyBasic_COPYRIGHT "Copyright (c) 2022-3 Nigel Perks")
 configure_file("${PROJECT_SOURCE_DIR}/config.h.in" "${PROJECT_BINARY_DIR}/config.h")
 include_directories("${PROJECT_BINARY_DIR}")
@@ -31,9 +31,40 @@ add_executable(LegacyBasic
   token.c
   utils.c
 )
-set_property(TARGET LegacyBasic PROPERTY C_STANDARD 11)
-if(NOT WIN32)
+set_target_properties(LegacyBasic PROPERTIES C_STANDARD 11)
+if(UNIX OR LINUX)
+set_target_properties(LegacyBasic PROPERTIES OUTPUT_NAME legacy-basic)
 target_link_libraries(LegacyBasic PRIVATE m)
 endif()
 target_compile_definitions(LegacyBasic PRIVATE UNIT_TEST)
-install(TARGETS LegacyBasic DESTINATION bin)
+
+file(COPY_FILE "${PROJECT_SOURCE_DIR}/README.md" "${PROJECT_BINARY_DIR}/README.md")
+file(COPY_FILE "${PROJECT_SOURCE_DIR}/LICENSE" "${PROJECT_BINARY_DIR}/LICENSE")
+
+install(TARGETS LegacyBasic DESTINATION bin COMPONENT interpreter)
+if(UNIX OR LINUX)
+set(LBASIC_DOCDIR "share/legacy-basic")
+else()
+set(LBASIC_DOCDIR "doc")
+endif()
+install(FILES README.md LICENSE DESTINATION ${LBASIC_DOCDIR} COMPONENT documentation)
+
+set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE")
+set(CPACK_PACKAGE_NAME "LegacyBasic")
+set(CPACK_PACKAGE_VERSION_MAJOR "${LegacyBasic_VERSION_MAJOR}")
+set(CPACK_PACKAGE_VERSION_MINOR "${LegacyBasic_VERSION_MINOR}")
+set(CPACK_PACKAGE_VERSION_PATCH "${LegacyBasic_VERSION_PATCH}")
+set(CPACK_PACKAGE_VENDOR "Nigel Perks")
+set(CPACK_PACKAGE_INSTALL_DIRECTORY "LegacyBasic")
+set(CPACK_PACKAGE_EXECUTABLES "LegacyBasic" "LegacyBasic")
+set(CPACK_NSIS_MODIFY_PATH ON)
+set(CPACK_CREATE_DESKTOP_LINKS LegacyBasic)
+include(CPack)
+cpack_add_component(interpreter REQUIRED
+  DISPLAY_NAME "LegacyBasic interpreter"
+  DESCRIPTION "Interpreter for 1970s/80s BASIC games"
+)
+cpack_add_component(documentation
+  DISPLAY_NAME "Documentation"
+  DESCRIPTION "License and how to use"
+)

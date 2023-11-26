@@ -3,7 +3,35 @@
 Legacy Basic is an interpreter for the legacy of 1970s-style microcomputer BASIC
 programs, especially text-based games.
 
-## HOW TO BUILD THE INTERPRETER
+Please see LICENSE.
+
+1. Installer for Windows
+2. Building the interpreter from source
+3. Running a BASIC program in a file
+4. Immediate mode
+5. References
+6. Technical details
+7. Contributions
+8. Bug reports
+
+
+## 1. INSTALLER FOR WINDOWS
+
+To run on Linux, or if the installer does not work, build from source as below.
+
+I hope the installer is useful, but it has not been widely tested for
+compatibility.
+
+Run the NSIS installer:
+
+```
+LegacyBasic-3.0.0-win64.exe
+```
+
+The executable is installed to `bin`, documents to `doc`.
+
+
+## 2. BUILDING THE INTERPRETER FROM SOURCE
 
 CMake will generate makefiles and project files for both Windows and Linux.
 
@@ -11,9 +39,9 @@ First change to the source directory containing `CMakeLists.txt`.
 
 ### Building on Windows
 
-Using Visual Studio 17 2022 on 64-bit Windows for example.
-This is a multi-configuration generator.
-The configuration (Debug, Release) is selected at build time.
+Using Visual Studio 17 2022 on 64-bit Windows for example. This is a
+multi-configuration generator. The configuration (Debug, Release) is selected
+at build time.
 
 ```
 md Build
@@ -38,9 +66,8 @@ cmake --install Build --config Release --prefix C:\Local
 
 ### Building on Linux
 
-Using makefiles for example.
-This is a single-configuration generator.
-The configuration (Debug, Release) is selected at generation time.
+Using makefiles for example. This is a single-configuration generator. The
+configuration (Debug, Release) is selected at generation time.
 
 ```
 mkdir Release
@@ -51,8 +78,8 @@ cmake --build Release
 #### Testing
 
 ```
-Release/LegacyBasic -unittest
-python3 test.py Release/LegacyBasic
+Release/legacy-basic -unittest
+python3 test.py Release/legacy-basic
 ```
 
 #### Installing
@@ -63,15 +90,18 @@ To install in `/usr/local/bin` for example:
 cmake --install Release --prefix /usr/local
 ```
 
-## RUNNING A PROGRAM IN A FILE
+
+## 3. RUNNING A BASIC PROGRAM IN A FILE
 
 To run a BASIC program in a file:
 
-    LegacyBasic game.bas
+    LegacyBasic  game.bas        (Windows)
+    legacy-basic game.bas        (Linux)
 
 To use BASIC interactively (immediate mode), run:
 
-    LegacyBasic
+    LegacyBasic                  (Windows)
+    legacy-basic                 (Linux)
 
 with no BASIC file name.
 
@@ -90,10 +120,11 @@ LETA=BANDC meaning LET A = B AND C, use the --keywords-anywhere option.
 
 To get full help on all the options, use --help-full.
 
-## IMMEDIATE MODE (INTERACTIVE)
 
-When LegacyBasic is run with no BASIC source file specified,
-immediate mode is entered.
+## 4. IMMEDIATE MODE (INTERACTIVE)
+
+When LegacyBasic is run with no BASIC source file specified, immediate mode is
+entered.
 
 Use BYE to return to the operating system.
 
@@ -105,25 +136,22 @@ There is no EDIT command or line editing: retype a line to replace it.
 
 Type a line number followed immediately by ENTER to delete that line.
 
-Most BASIC statements can be used interactively.
-Definitions of variables, arrays and DEF functions
-are shared between program and interactive environment.
-So a definition made in the program is available after it is run,
-in the interactive environment.
-And a definition made interactively is available in the program,
-if a program segment is entered with GOTO.
-However, RUN clears all definitions, as does CLEAR.
+Most BASIC statements can be used interactively. Definitions of variables,
+arrays and DEF functions are shared between program and interactive environment.
+So a definition made in the program is available after it is run, in the
+interactive environment. And a definition made interactively is available in the
+program, if a program segment is entered with GOTO. However, RUN clears all
+definitions, as does CLEAR.
 
 If any change is made to the source program, it is recompiled when a statement
-is next executed, and the state of GOSUB/RETURN and FOR loops is cleared.
-Thus a GOTO or NEXT might continue a FOR loop in progress,
-but not after a program edit.
+is next executed, and the state of GOSUB/RETURN and FOR loops is cleared. Thus a
+GOTO or NEXT might continue a FOR loop in progress, but not after a program edit.
 
-The state of GOSUB/RETURN and FOR loops is also cleared
-if it would refer to an immediate statement that no longer exists.
+The state of GOSUB/RETURN and FOR loops is also cleared if it would refer to an
+immediate statement that no longer exists.
 
-When code is running in interactive mode, CTRL-C should return to
-the BASIC prompt, rather than exiting the interpreter (tested on Windows and Ubuntu).
+When code is running in interactive mode, CTRL-C should return to the BASIC
+prompt, rather than exiting the interpreter (tested on Windows and Ubuntu).
 
 Immediate mode commands are:
 
@@ -176,7 +204,7 @@ Immediate mode commands are:
      10.2
 
 
-## REFERENCES
+## 5. REFERENCES
 
 John G. KEMENY and Thomas E. KURTZ, "Back to BASIC", 1985.
 
@@ -195,21 +223,24 @@ David H. Ahl, "Basic Computer Games: Microcomputer Edition", 1978.
 
 David H. Ahl, "More Basic Computer Games", 1979.
 
-## TECHNICAL DETAILS
+
+## 6. TECHNICAL DETAILS
 
 Legacy Basic parses the source file from beginning to end, translating it into
 an intermediate code. So any syntax errors or unsupported constructs are found
-up front, not in the middle of a run. The intermediate code targets a stack-
-based virtual machine. It has operators to handle run-time definition of arrays
-and functions, and FOR loops which break static nesting.
+up front, not in the middle of a run. The intermediate code targets a
+stack-based virtual machine. It has operators to handle run-time definition of
+arrays and functions, and FOR loops which break static nesting.
 
 I emphasised informative error messages at both parse and run time.
 
-## CONTRIBUTIONS
 
-Original Linux support (before `cmake`) by yuppox.
+## 7. CONTRIBUTIONS
 
-## BUG REPORTS
+Original Linux support (before CMake) by yuppox.
+
+
+## 8. BUG REPORTS
 
 Bug reports are welcome to the email address in the git history.
 
