@@ -16,7 +16,7 @@
 #include "utils.h"
 
 #ifdef UNIT_TEST
-static void unit_tests(void);
+static int unit_tests(void);
 #endif
 
 static void print_version(void);
@@ -80,9 +80,11 @@ int main(int argc, char* argv[]) {
   if (!quiet)
     print_version();
 
+  int rc = 0;
+
 #ifdef UNIT_TEST
   if (mode == TEST)
-    unit_tests();
+    rc = unit_tests();
   else
 #endif
   if (name == NULL)
@@ -97,7 +99,7 @@ int main(int argc, char* argv[]) {
     printf("free:   %10lu\n", free_count);
   }
 
-  return 0;
+  return rc;
 }
 
 static void print_version() {
@@ -219,7 +221,7 @@ CuSuite* arrays_test_suite(void);
 CuSuite* keyword_test_suite(void);
 CuSuite* paren_test_suite(void);
 
-static void unit_tests(void) {
+static int unit_tests(void) {
   CuString* output = CuStringNew();
   CuSuite* suite = CuSuiteNew();
 
@@ -235,8 +237,10 @@ static void unit_tests(void) {
   CuSuiteAddSuite(suite, paren_test_suite());
 
   CuSuiteRun(suite);
+  int failed = suite->failCount;
   CuSuiteSummary(suite, output);
   CuSuiteDetails(suite, output);
   puts(output->buffer);
+  return failed;
 }
 #endif
