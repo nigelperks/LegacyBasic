@@ -64,7 +64,7 @@ def offer_new_reference(ref, typ, update=False):
 
 
 def test(exe, source):
-  banner(source)
+# banner(source)
   options = ""
   with open(source) as f:
     top = f.readline()
@@ -80,20 +80,53 @@ def test(exe, source):
 
 # MAIN
 
-if len(sys.argv) != 2:
-  fatal("Usage: test.py legacy-basic.exe")
-exe = sys.argv[1]
-if not os.path.isfile(exe):
-  fatal("Basic interpreter not found: " + exe)
-exe = os.path.abspath(exe)
+TestsDir = "tests"
+BinaryName = "LegacyBasic"
+BinaryDir = None
 
-if not os.path.isdir("tests"):
-  fatal("tests directory not found")
-os.chdir("tests")
-count = 0
-for source in glob("*.bas"):
-  test(exe, source)
-  count += 1
+for arg in sys.argv[1:]:
+  if arg.startswith("--tests="):
+    TestsDir = arg[len("--tests="):]
+  elif arg.startswith("--bin=") or arg.startswith("--exe="):
+    BinaryName = arg[6:]
+  elif arg.startswith("--dir="):
+    BinaryDir = arg[6:]
+  else:
+    fatal("unrecognised argument: " + arg)
+
+if os.name == "nt":
+  if not BinaryName.endswith(".exe"):
+    BinaryName += ".exe"
+
+print("TestsDir", TestsDir)
+print("Binary", BinaryName)
+print("BuildDir", BinaryDir)
+print()
+
+if not os.path.isdir(TestsDir):
+  fatal("Tests directory not found: " + TestsDir)
+
+Tests = glob(os.path.join(TestsDir, "*.bas"))
+
+if BinaryDir is None:
+  BinaryDir = ""
+
+ExeFound = 0
+Passes = 0
+
+for sub in ["", "Release", "Debug"]:
+  exe = os.path.abspath(os.path.join(BinaryDir, sub, BinaryName))
+  if os.path.isfile(exe):
+    ExeFound += 1
+    banner(exe)
+    for source in Tests:
+      test(exe, source)
+      Passes += 1
+
+if ExeFound == 0:
+  fatal("No Legacy Basic interpreter found")
+
 banner("Summary")
-print("Pass:", count)
+print("Pass:", Passes)
 print("Fail:", 0)
+sys.exit(0)

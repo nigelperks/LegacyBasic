@@ -49,11 +49,13 @@ cmake -S . -B Build -G "Visual Studio 17 2022" -A x64 -T host=x64
 cmake --build Build --config Release
 ```
 
+If Python is not installed, so that tests cannot be run, add `-DLBASIC_NOTEST=1`
+to the generation command.
+
 #### Testing
 
 ```
-Build\Release\LegacyBasic -unittest
-test.py Build\Release\LegacyBasic.exe
+ctest -C Release --test-dir Build
 ```
 
 #### Installing
@@ -78,8 +80,7 @@ cmake --build Release
 #### Testing
 
 ```
-Release/legacy-basic -unittest
-python3 test.py Release/legacy-basic
+ctest -C Release --test-dir Release
 ```
 
 #### Installing

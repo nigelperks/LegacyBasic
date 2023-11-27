@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.22.1)
-project(LegacyBasic DESCRIPTION "Legacy Basic" VERSION 3.0.1)
+project(LegacyBasic DESCRIPTION "Legacy Basic" VERSION 3.0.2)
 set(LegacyBasic_COPYRIGHT "Copyright (c) 2022-3 Nigel Perks")
 configure_file("${PROJECT_SOURCE_DIR}/config.h.in" "${PROJECT_BINARY_DIR}/config.h")
 include_directories("${PROJECT_BINARY_DIR}")
@@ -33,9 +33,12 @@ add_executable(LegacyBasic
 )
 set_target_properties(LegacyBasic PROPERTIES C_STANDARD 11)
 if(UNIX OR LINUX)
-set_target_properties(LegacyBasic PROPERTIES OUTPUT_NAME legacy-basic)
+set(LBASIC_OUTPUT_NAME "legacy-basic")
 target_link_libraries(LegacyBasic PRIVATE m)
+else()
+set(LBASIC_OUTPUT_NAME "LegacyBasic")
 endif()
+set_target_properties(LegacyBasic PROPERTIES OUTPUT_NAME ${LBASIC_OUTPUT_NAME})
 target_compile_definitions(LegacyBasic PRIVATE UNIT_TEST)
 
 file(COPY_FILE "${PROJECT_SOURCE_DIR}/README.md" "${PROJECT_BINARY_DIR}/README.md")
@@ -68,3 +71,15 @@ cpack_add_component(documentation
   DISPLAY_NAME "Documentation"
   DESCRIPTION "License and how to use"
 )
+
+if(NOT LBASIC_NOTEST)
+  include(FindPython3)
+  find_package(Python3 COMPONENTS Interpreter REQUIRED)
+  enable_testing()
+  add_test(NAME UnitTests COMMAND LegacyBasic "--unit-tests")
+  add_test(NAME RegressionTests
+           COMMAND ${Python3_EXECUTABLE} "${PROJECT_SOURCE_DIR}/test.py"
+                   "--tests=${PROJECT_SOURCE_DIR}/tests"
+                   "--bin=${LBASIC_OUTPUT_NAME}"
+          )
+endif()
