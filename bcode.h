@@ -69,6 +69,8 @@ enum {
   B_ON_GOTO,
   B_ON_LINE,
   B_IF_THEN,
+  B_IF_ELSE,
+  B_ELSE,
   // output
   B_PRINT_LN,
   B_PRINT_SPC,
@@ -144,6 +146,7 @@ typedef struct {
 
 BCODE* new_bcode(void);
 void delete_bcode(BCODE*);
+const BINST* bcode_latest(const BCODE*);
 BINST* bcode_next(BCODE*, unsigned op);
 
 void print_bcode(const BCODE*, const SOURCE*, const STRINGLIST* names, FILE*);

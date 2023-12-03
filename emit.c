@@ -5,8 +5,9 @@
 #include "emit.h"
 #include "utils.h"
 
-void emit(BCODE* bcode, unsigned op) {
-  bcode_next(bcode, op);
+unsigned emit(BCODE* bcode, unsigned op) {
+  BINST* i = bcode_next(bcode, op);
+  return (unsigned)(i - bcode->inst);
 }
 
 void emit_line(BCODE* bcode, unsigned op, unsigned line) {
@@ -47,9 +48,18 @@ unsigned emit_count(BCODE* bcode, unsigned op, unsigned count) {
   return (unsigned)(i - bcode->inst);
 }
 
-void patch_count(BCODE* bcode, unsigned index, unsigned count) {
+static void check_index(const BCODE* bcode, unsigned index) {
   if (index >= bcode->used)
     fatal("B-code index out of range\n");
+}
+
+void patch_opcode(BCODE* bcode, unsigned index, unsigned op) {
+  check_index(bcode, index);
+  bcode->inst[index].op = op;
+}
+
+void patch_count(BCODE* bcode, unsigned index, unsigned count) {
+  check_index(bcode, index);
   bcode->inst[index].u.count = count;
 }
 

@@ -13,6 +13,7 @@ const KEYWORD basic_keywords[] = {
   { "DATA", 4, TOK_DATA },
   { "DEF", 3, TOK_DEF },
   { "DIM", 3, TOK_DIM },
+  { "ELSE", 4, TOK_ELSE },
   { "END", 3, TOK_END },
   { "FOR", 3, TOK_FOR },
   { "GOSUB", 5, TOK_GOSUB },

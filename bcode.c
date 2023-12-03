@@ -68,6 +68,8 @@ static const struct {
   { "ON-GOTO", BF_COUNT },
   { "ON-LINE", BF_BASIC_LINE },
   { "IF-THEN", BF_IMPLICIT },
+  { "IF-ELSE", BF_IMPLICIT },
+  { "ELSE", BF_IMPLICIT },
   // output
   { "PRINT-LN", BF_IMPLICIT },
   { "PRINT-SPC", BF_IMPLICIT },
@@ -126,6 +128,11 @@ void delete_bcode(BCODE* p) {
     efree(p->inst);
     efree(p);
   }
+}
+
+const BINST* bcode_latest(const BCODE* p) {
+  assert(p != NULL);
+  return p->used ? &p->inst[p->used - 1] : NULL;
 }
 
 BINST* bcode_next(BCODE* p, unsigned op) {

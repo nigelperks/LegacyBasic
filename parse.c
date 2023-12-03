@@ -21,6 +21,7 @@ typedef struct {
   LEX* lex;
   BCODE* bcode;
   STRINGLIST* names;
+  unsigned if_then;
   jmp_buf errjmp;
 } PARSER;
 
@@ -32,6 +33,7 @@ BCODE* parse_source(const SOURCE* source, STRINGLIST* names, bool recognise_keyw
   parser.lex = new_lex(source_name(source), basic_keywords, recognise_keyword_prefixes);
   parser.bcode = new_bcode();
   parser.names = names;
+  parser.if_then = 0;
   if (setjmp(parser.errjmp) == 0) {
     for (unsigned i = 0; i < source_lines(source); i++)
       parse_line(&parser, i, source_linenum(source, i), source_text(source, i));
@@ -119,6 +121,7 @@ static void complete_statement(PARSER*);
 static void parse_line(PARSER* parser, unsigned line_index, unsigned lineno, const char* text) {
   lex_line(parser->lex, lineno, text);
   emit_line(parser->bcode, B_LINE, line_index);
+  parser->if_then = 0;
   complete_statement(parser);
   while (lex_token(parser->lex) == ':') {
     lex_next(parser->lex);
@@ -129,6 +132,8 @@ static void parse_line(PARSER* parser, unsigned line_index, unsigned lineno, con
 
 static bool statement(PARSER*);
 
+// As long as a complete statement continues,
+// another statement is required before a colon or end of line.
 static void complete_statement(PARSER* parser) {
   while (statement(parser))
     ;
@@ -138,6 +143,7 @@ static void clear_statement(PARSER*);
 static void data_statement(PARSER*);
 static void def_statement(PARSER*);
 static void dim_statement(PARSER*);
+static bool else_clause(PARSER*);
 static void end_statement(PARSER*);
 static void for_statement(PARSER*);
 static void goto_statement(PARSER*);
@@ -183,12 +189,14 @@ static bool statement(PARSER* parser) {
     case TOK_ID: assignment(parser); break;
     default: parse_error(parser, "statement expected"); break;
   }
+  if (lex_token(parser->lex) == TOK_ELSE)
+    continues = else_clause(parser);
   return continues;
 }
 
 static bool eos(LEX* lex) {
   int t;
-  return (t = lex_token(lex)) == TOK_EOF || t == '\n' || t == ':';
+  return (t = lex_token(lex)) == TOK_EOF || t == '\n' || t == ':' || t == TOK_ELSE;
 }
 
 static int expression(PARSER*);
@@ -378,9 +386,31 @@ static bool if_statement(PARSER* parser) {
   if (lex_token(parser->lex) == TOK_NUM) {
     unsigned line = line_number(parser);
     emit_line(parser->bcode, B_GOTRUE, line);
+    parser->if_then = 0;
     return false;
   }
-  emit(parser->bcode, B_IF_THEN);
+  parser->if_then = emit(parser->bcode, B_IF_THEN);
+  return true;
+}
+
+static bool else_clause(PARSER* parser) {
+  if (parser->if_then == 0) {
+    const BINST* inst = bcode_latest(parser->bcode);
+    if (inst && inst->op == B_GOTRUE) {
+      // IF ... THEN line-number ELSE ...
+      match(parser, TOK_ELSE);
+      unsigned line = line_number(parser);
+      emit_line(parser->bcode, B_GOTO, line);
+      return false;
+    }
+    parse_error(parser, "unexpected ELSE");
+  }
+
+  // IF ... THEN statements ELSE ...
+  match(parser, TOK_ELSE);
+  patch_opcode(parser->bcode, parser->if_then, B_IF_ELSE);
+  emit(parser->bcode, B_ELSE);
+  parser->if_then = 0;
   return true;
 }
 

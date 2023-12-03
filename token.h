@@ -26,6 +26,7 @@ enum {
   TOK_DATA,
   TOK_DEF,
   TOK_DIM,
+  TOK_ELSE,
   TOK_END,
   TOK_FOR,
   TOK_GOSUB,

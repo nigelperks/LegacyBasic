@@ -1055,6 +1055,18 @@ static void execute(VM* vm) {
         return;
       }
       break;
+    case B_IF_ELSE: // IF ... THEN statements ELSE statements -- skip to ELSE statements if condition false
+      if (!pop(vm)) {
+        do {
+          vm->pc++;
+        } while (vm->pc < vm->bc->used && vm->bc->inst[vm->pc].op != B_ELSE);
+      }
+      break;
+    case B_ELSE: // THEN statements ELSE statements -- skip to next line after executing THEN section
+      do {
+        vm->pc++;
+      } while (vm->pc < vm->bc->used && vm->bc->inst[vm->pc].op != B_LINE);
+      return;
     // output
     case B_PRINT_LN:
       putchar('\n');
