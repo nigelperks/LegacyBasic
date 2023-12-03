@@ -11,8 +11,13 @@
 #include "config.h"
 #include "source.h"
 #include "parse.h"
+#include "lexer.h"
+#include "parse.h"
+#include "token.h"
+#include "builtin.h"
 #include "run.h"
 #include "interactive.h"
+#include "stringuniq.h"
 #include "utils.h"
 
 #ifdef UNIT_TEST
@@ -22,10 +27,11 @@ static int unit_tests(void);
 static void print_version(void);
 static void help(bool full);
 static void list_file(const char* name);
+static void list_names(const char* name, bool crunched);
 static void compile_file(int mode, const char* name, bool keywords_anywhere,
                          bool trace_basic, bool trace_for, bool trace_log);
 
-enum mode { LIST, PARSE, CODE, RUN, TEST };
+enum mode { LIST, LIST_NAMES, PARSE, CODE, RUN, TEST };
 
 int main(int argc, char* argv[]) {
   enum mode mode = RUN;
@@ -47,6 +53,8 @@ int main(int argc, char* argv[]) {
       help(true);
     else if (strcmp(arg, "--list") == 0 || strcmp(arg, "-l") == 0)
       mode = LIST;
+    else if (strcmp(arg, "--list-names") == 0 || strcmp(arg, "-n") == 0)
+      mode = LIST_NAMES;
     else if (strcmp(arg, "--parse") == 0 || strcmp(arg, "-p") == 0)
       mode = PARSE;
     else if (strcmp(arg, "--code") == 0 || strcmp(arg, "-c") == 0)
@@ -95,10 +103,13 @@ int main(int argc, char* argv[]) {
     interact(keywords_anywhere, trace_basic, trace_for);
   else if (mode == LIST)
     list_file(name);
+  else if (mode == LIST_NAMES)
+    list_names(name, keywords_anywhere);
   else
     compile_file(mode, name, keywords_anywhere, trace_basic, trace_for, trace_log);
 
   if (report_memory) {
+    putchar('\n');
     printf("malloc: %10lu\n", malloc_count);
     printf("free:   %10lu\n", free_count);
   }
@@ -135,6 +146,13 @@ static void help(bool full) {
     puts("    List the source program. This checks that line numbers are distinct\n"
          "    and in sequence, and that Legacy Basic can load the program, without\n"
          "    running it or checking for syntax errors.\n");
+
+  puts("--list-names, -n");
+  if (full)
+    puts("    List the names in the source program. Flag the names of built-in\n"
+         "    functions (*) and printing operators (=). The unflagged names are\n"
+         "    user-defined names. If the interpreter considers a name user-\n"
+         "    defined, it will not be interpreted as a built-in.\n");
 
   puts("--parse, -p");
   if (full)
@@ -190,6 +208,42 @@ static void list_file(const char* name) {
     printf("%5u %s\n", source_linenum(source, i), source_text(source, i));
 }
 
+static void print_name(const char* name) {
+  char type = ' ';
+  if (builtin(name))
+    type = '*';
+  else if (name_is_print_builtin(name))
+    type = '=';
+  printf("%c %s\n", type, name);
+}
+
+static void list_names(const char* file_name, bool crunched) {
+  SOURCE* source = load_source_file(file_name);
+  if (source == NULL)
+    exit(EXIT_FAILURE);
+
+  LEX* lex = new_lex(source_name(source), basic_keywords, crunched);
+
+  UNIQUE_STRINGS* names = new_unique_strings();
+
+  for (unsigned i = 0; i < source_lines(source); i++) {
+    lex_line(lex, source_linenum(source, i), source_text(source, i));
+    int t = lex_token(lex);
+    while (t != '\n' && t != TOK_REM) {
+      if (t == TOK_ID)
+        insert_unique_string(names, lex_word(lex));
+      t = lex_next(lex);
+    }
+  }
+
+  traverse_unique_strings(names, print_name);
+
+  delete_unique_strings(names);
+
+  delete_lex(lex);
+  delete_source(source);
+}
+
 static void compile_file(int mode, const char* name, bool keywords_anywhere,
                          bool trace_basic, bool trace_for, bool trace_log) {
   SOURCE* source = load_source_file(name);
@@ -218,6 +272,7 @@ static void compile_file(int mode, const char* name, bool keywords_anywhere,
 CuSuite* utils_test_suite(void);
 CuSuite* token_test_suite(void);
 CuSuite* stringlist_test_suite(void);
+CuSuite* stringuniq_test_suite(void);
 CuSuite* source_test_suite(void);
 CuSuite* lexer_test_suite(void);
 CuSuite* bcode_test_suite(void);
@@ -233,6 +288,7 @@ static int unit_tests(void) {
   CuSuiteAddSuite(suite, utils_test_suite());
   CuSuiteAddSuite(suite, token_test_suite());
   CuSuiteAddSuite(suite, stringlist_test_suite());
+  CuSuiteAddSuite(suite, stringuniq_test_suite());
   CuSuiteAddSuite(suite, source_test_suite());
   CuSuiteAddSuite(suite, lexer_test_suite());
   CuSuiteAddSuite(suite, bcode_test_suite());

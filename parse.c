@@ -593,6 +593,10 @@ static void print_builtin(PARSER* parser, int opcode) {
   emit(parser->bcode, opcode);
 }
 
+bool name_is_print_builtin(const char* name) {
+  return STRICMP(name, "SPC") == 0 || STRICMP(name, "TAB") == 0;
+}
+
 static void rem_statement(PARSER* parser) {
   lex_discard(parser->lex);
 }

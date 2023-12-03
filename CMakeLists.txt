@@ -29,6 +29,7 @@ add_executable(LegacyBasic
   run.c
   source.c
   stringlist.c
+  stringuniq.c
   token.c
   utils.c
 )

@@ -7,3 +7,5 @@
 #include "bcode.h"
 
 BCODE* parse_source(const SOURCE*, STRINGLIST* names, bool recognise_keyword_prefixes);
+
+bool name_is_print_builtin(const char* name);

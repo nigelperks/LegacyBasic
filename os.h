@@ -4,6 +4,8 @@
 
 #pragma once
 
+#include <string.h>
+
 #ifndef LINUX
 #if defined linux
 #define LINUX
