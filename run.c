@@ -144,6 +144,8 @@ VM* new_vm(bool keywords_anywhere, bool trace_basic, bool trace_for, bool trace_
 void delete_vm(VM* vm) {
   if (vm) {
     reset_vm(vm);
+    delete_source(vm->program_source);
+    delete_bcode(vm->program_bcode);
     delete_environment(vm->env);
     efree(vm);
   }
