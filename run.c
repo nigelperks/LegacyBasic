@@ -882,6 +882,8 @@ static void execute(VM* vm) {
     case B_GOTRUE:
       if (pop(vm)) {
         vm->pc = find_basic_line(vm, i->u.line);
+        vm->bc = vm->program_bcode;
+        vm->source = vm->program_source;
         return;
       }
       break;
@@ -1041,6 +1043,8 @@ static void execute(VM* vm) {
       if (k >= vm->bc->used || vm->bc->inst[k].op != B_ON_LINE)
         run_error(vm, "internal error: ON-LINE expected\n");
       vm->pc = find_basic_line(vm, vm->bc->inst[k].u.line);
+      vm->bc = vm->program_bcode;
+      vm->source = vm->program_source;
       return;
     }
     case B_IF_THEN: // IF ... THEN statements  -- skip to next line if condition false
