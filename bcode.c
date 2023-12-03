@@ -231,6 +231,14 @@ static unsigned def_end(const BCODE* code, unsigned pc) {
   return pc;
 }
 
+static BINST copy_inst(const BINST* i) {
+  BINST j = *i;
+  assert(j.op < sizeof ops / sizeof ops[0]);
+  if (ops[j.op].format == BF_STR)
+    j.u.str = estrdup(j.u.str);
+  return j;
+}
+
 BCODE* bcode_copy_def(const BCODE* src, unsigned start) {
   unsigned end = def_end(src, start);
   unsigned len = end - start;
@@ -239,7 +247,7 @@ BCODE* bcode_copy_def(const BCODE* src, unsigned start) {
   dst->inst = emalloc(size * sizeof dst->inst[0]);
   dst->allocated = size;
   for (unsigned i = 0; i < len; i++)
-    dst->inst[i] = src->inst[start + i];
+    dst->inst[i] = copy_inst(&src->inst[start + i]);
   dst->inst[len].op = B_END_DEF;
   dst->used = size;
   return dst;
