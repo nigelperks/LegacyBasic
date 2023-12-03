@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.22.1)
-project(LegacyBasic DESCRIPTION "Legacy Basic" VERSION 3.1.0)
+project(LegacyBasic DESCRIPTION "Legacy Basic" VERSION 3.1.1)
 set(LegacyBasic_COPYRIGHT "Copyright (c) 2022-3 Nigel Perks")
 configure_file("${PROJECT_SOURCE_DIR}/config.h.in" "${PROJECT_BINARY_DIR}/config.h")
 include_directories("${PROJECT_BINARY_DIR}")
