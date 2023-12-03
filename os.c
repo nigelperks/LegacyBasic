@@ -1,10 +1,19 @@
+#include <stdio.h>
 #include <stdlib.h>
 #include "os.h"
 
 void clear_screen(void) {
+  const char* CMD =
 #if defined WINDOWS
-  system("CLS");
+  "CLS";
 #elif defined LINUX
-  system("clear");
+  "clear";
+#else
+  NULL;
 #endif
+
+  if (CMD == NULL || system(CMD) != 0) {
+    // fake a new screen
+    puts("\n----------------------------------------------------------------\n");
+  }
 }

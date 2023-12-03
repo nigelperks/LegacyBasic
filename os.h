@@ -21,7 +21,6 @@
 #if defined LINUX
 #define STRICMP strcasecmp
 #define STRNICMP strncasecmp
-#error need KBHIT and GETCH for Linux
 #define HAS_KBHIT 0
 #define HAS_GETCH 0
 #elif defined WINDOWS
