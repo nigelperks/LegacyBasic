@@ -8,6 +8,7 @@
 #include "os.h"
 
 // used in test_insert_builtins() in paren.c
+// parameter types: n=number, s=string, d=dummy
 BUILTIN builtins[] = {
   { "ABS",    TYPE_NUM, "n",   B_ABS },
   { "ASC",    TYPE_NUM, "s",   B_ASC },
@@ -23,7 +24,7 @@ BUILTIN builtins[] = {
   { "LOG",    TYPE_NUM, "n",   B_LOG },
   { "MID$",   TYPE_STR, "snn", B_MID3 },
   { "RIGHT$", TYPE_STR, "sn",  B_RIGHT },
-  { "RND",    TYPE_NUM, "n",   B_RND },
+  { "RND",    TYPE_NUM, "d",   B_RND },
   { "SGN",    TYPE_NUM, "n",   B_SGN },
   { "SIN",    TYPE_NUM, "n",   B_SIN },
   { "SPACE$", TYPE_ERR, NULL,  B_NOP },

@@ -18,6 +18,7 @@ static const struct {
   { "CLEAR", BF_IMPLICIT },
   // number
   { "PUSH-NUM", BF_NUM },
+  { "POP-NUM", BF_IMPLICIT },
   { "GET-SIMPLE-NUM", BF_VAR },
   { "SET-SIMPLE-NUM", BF_VAR },
   { "DIM-NUM", BF_PARAM },
@@ -40,6 +41,7 @@ static const struct {
   { "NEG", BF_IMPLICIT },
   // string
   { "PUSH-STR", BF_STR },
+  { "POP-STR", BF_IMPLICIT },
   { "SET-SIMPLE-STR", BF_VAR },
   { "GET-SIMPLE-STR", BF_VAR },
   { "DIM-STR", BF_PARAM },

@@ -670,6 +670,9 @@ static void execute(VM* vm) {
     case B_PUSH_NUM:
       push(vm, i->u.num);
       break;
+    case B_POP_NUM:
+      pop(vm);
+      break;
     case B_GET_SIMPLE_NUM: {
       int j = lookup_numvar_name(vm, i->u.name);
       if (j < 0) {
@@ -803,6 +806,9 @@ static void execute(VM* vm) {
     // string
     case B_PUSH_STR:
       push_str(vm, i->u.str);
+      break;
+    case B_POP_STR:
+      efree(pop_str(vm));
       break;
     case B_SET_SIMPLE_STR:
       set_strvar_name(vm, i->u.name, pop_str(vm));
@@ -1304,7 +1310,6 @@ static void execute(VM* vm) {
       break;
     }
     case B_RND: {
-      pop(vm); // dummy argument
       double x;
       do {
         x = (double) rand() / RAND_MAX;

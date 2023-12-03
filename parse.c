@@ -617,6 +617,14 @@ static void string_expression(PARSER* parser) {
     parse_error_no_token(parser, "string expression expected");
 }
 
+static void discard_expression(PARSER* parser) {
+  int t = expression(parser);
+  switch (t) {
+    case TYPE_NUM: emit(parser->bcode, B_POP_NUM); break;
+    case TYPE_STR: emit(parser->bcode, B_POP_STR); break;
+  }
+}
+
 static int OR_expression(PARSER*);
 
 static int expression(PARSER* parser) {
@@ -831,16 +839,27 @@ static int primary_expression(PARSER* parser) {
       if (b->type == TYPE_ERR)
         parse_error(parser, "built-in function not yet implemented");
       lex_next(parser->lex);
-      match(parser, '(');
       const char* arg = b->args;
-      if (*arg) {
+      assert(arg != NULL); // otherwise type would be ERR, not implemented
+      assert(*arg); // even if 'd' dummy argument
+      if (*arg == 'd') {
+        // if argument is only a dummy, allow RND, RND(), RND(0), RND("")
+        if (lex_token(parser->lex) == '(') {
+          lex_next(parser->lex);
+          if (lex_token(parser->lex) != ')')
+            discard_expression(parser);
+          match(parser, ')');
+        }
+      }
+      else {
+        match(parser, '(');
         builtin_arg(parser, *arg);
         for (arg++; *arg; arg++) {
           match(parser, ',');
           builtin_arg(parser, *arg);
         }
+        match(parser, ')');
       }
-      match(parser, ')');
       emit(parser->bcode, b->opcode);
       return b->type;
     }

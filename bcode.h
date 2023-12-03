@@ -19,6 +19,7 @@ enum {
   B_CLEAR,
   // numbers
   B_PUSH_NUM,
+  B_POP_NUM,
   B_GET_SIMPLE_NUM,
   B_SET_SIMPLE_NUM,
   B_DIM_NUM,
@@ -41,6 +42,7 @@ enum {
   B_NEG,
   // strings
   B_PUSH_STR,
+  B_POP_STR,
   B_SET_SIMPLE_STR,
   B_GET_SIMPLE_STR,
   B_DIM_STR,
