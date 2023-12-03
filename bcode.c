@@ -66,6 +66,7 @@ static const struct {
   { "PARAM", BF_VAR },
   { "END-DEF", BF_IMPLICIT },
   { "ON-GOTO", BF_COUNT },
+  { "ON-GOSUB", BF_COUNT },
   { "ON-LINE", BF_BASIC_LINE },
   { "IF-THEN", BF_IMPLICIT },
   { "IF-ELSE", BF_IMPLICIT },

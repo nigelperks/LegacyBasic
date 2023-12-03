@@ -596,11 +596,34 @@ void vm_print_bcode(VM* vm) {
     print_bcode(vm->program_bcode, vm->program_source, vm->env->names, stdout);
 }
 
-static unsigned find_basic_line(VM* vm, unsigned basic_line) {
+static void go_to(VM* vm, unsigned basic_line) {
   unsigned bcode_line;
   if (!bcode_find_basic_line(vm->program_bcode, basic_line, vm->program_source, &bcode_line))
     run_error(vm, "Line not found: %u\n", basic_line);
-  return bcode_line;
+
+  vm->pc = bcode_line;
+  vm->bc = vm->program_bcode;
+  vm->source = vm->program_source;
+}
+
+static void push_return(VM* vm, unsigned pc_continue) {
+  if (vm->rsp >= MAX_RETURN_STACK)
+    run_error(vm, "GOSUB is nested too deeply\n");
+  vm->retstack[vm->rsp].source = vm->source;
+  vm->retstack[vm->rsp].source_line = vm->source_line;
+  vm->retstack[vm->rsp].bcode = vm->bc;
+  vm->retstack[vm->rsp].pc = pc_continue;
+  vm->rsp++;
+}
+
+static void pop_return(VM* vm) {
+  if (vm->rsp == 0)
+    run_error(vm, "RETURN without GOSUB\n");
+  vm->rsp--;
+  vm->source = vm->retstack[vm->rsp].source;
+  vm->source_line = vm->retstack[vm->rsp].source_line;
+  vm->bc = vm->retstack[vm->rsp].bcode;
+  vm->pc = vm->retstack[vm->rsp].pc; // PC to continue from
 }
 
 static void check_paren_kind(VM* vm, const PAREN_SYMBOL* sym, int kind) {
@@ -876,39 +899,21 @@ static void execute(VM* vm) {
       vm->stopped = true;
       return;
     case B_GOTO:
-      vm->pc = find_basic_line(vm, i->u.line);
-      vm->bc = vm->program_bcode;
-      vm->source = vm->program_source;
+      go_to(vm, i->u.line);
       return;
     case B_GOTRUE:
       if (pop(vm)) {
-        vm->pc = find_basic_line(vm, i->u.line);
-        vm->bc = vm->program_bcode;
-        vm->source = vm->program_source;
+        go_to(vm, i->u.line);
         return;
       }
       break;
     case B_GOSUB:
-      if (vm->rsp >= MAX_RETURN_STACK)
-        run_error(vm, "GOSUB is nested too deeply\n");
-      vm->retstack[vm->rsp].source = vm->source;
-      vm->retstack[vm->rsp].source_line = vm->source_line;
-      vm->retstack[vm->rsp].bcode = vm->bc;
-      vm->retstack[vm->rsp].pc = vm->pc;
-      vm->rsp++;
-      vm->pc = find_basic_line(vm, i->u.line);
-      vm->bc = vm->program_bcode;
-      vm->source = vm->program_source;
+      push_return(vm, vm->pc + 1);
+      go_to(vm, i->u.line);
       return;
     case B_RETURN:
-      if (vm->rsp == 0)
-        run_error(vm, "RETURN without GOSUB\n");
-      vm->rsp--;
-      vm->source = vm->retstack[vm->rsp].source;
-      vm->source_line = vm->retstack[vm->rsp].source_line;
-      vm->bc = vm->retstack[vm->rsp].bcode;
-      vm->pc = vm->retstack[vm->rsp].pc;
-      break;
+      pop_return(vm); // pops PC to continue from
+      return;
     case B_FOR: {
       if (vm->trace_for)
         dump_for(vm, "FOR");
@@ -1030,7 +1035,8 @@ static void execute(VM* vm) {
     case B_END_DEF:
       end_def(vm);
       break;
-    case B_ON_GOTO: {
+    case B_ON_GOTO:
+    case B_ON_GOSUB: {
       double x = pop(vm);
       if (x != floor(x))
         run_error(vm, "ON value is invalid: %g\n", x);
@@ -1043,9 +1049,9 @@ static void execute(VM* vm) {
       unsigned k = vm->pc + (unsigned) x;
       if (k >= vm->bc->used || vm->bc->inst[k].op != B_ON_LINE)
         run_error(vm, "internal error: ON-LINE expected\n");
-      vm->pc = find_basic_line(vm, vm->bc->inst[k].u.line);
-      vm->bc = vm->program_bcode;
-      vm->source = vm->program_source;
+      if (i->op == B_ON_GOSUB)
+        push_return(vm, vm->pc + i->u.count + 1);
+      go_to(vm, vm->bc->inst[k].u.line);
       return;
     }
     case B_IF_THEN: // IF ... THEN statements  -- skip to next line if condition false

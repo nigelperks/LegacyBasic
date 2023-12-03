@@ -67,6 +67,7 @@ enum {
   B_PARAM,
   B_END_DEF,
   B_ON_GOTO,
+  B_ON_GOSUB,
   B_ON_LINE,
   B_IF_THEN,
   B_IF_ELSE,

@@ -509,20 +509,23 @@ static void on_statement(PARSER* parser) {
 
   numeric_expression(parser);
 
-  if (lex_token(parser->lex) == TOK_GOTO) {
-    unsigned i = emit_count(parser->bcode, B_ON_GOTO, 0);
+  unsigned opcode = B_NOP;
+  switch (lex_token(parser->lex)) {
+    case TOK_GOTO: opcode = B_ON_GOTO; break;
+    case TOK_GOSUB: opcode = B_ON_GOSUB; break;
+    default: parse_error(parser, "GOTO or GOSUB expected"); break;
+  }
+
+  unsigned i = emit_count(parser->bcode, opcode, 0);
+  lex_next(parser->lex);
+  on_line(parser);
+  unsigned count = 1;
+  while (lex_token(parser->lex) == ',') {
     lex_next(parser->lex);
     on_line(parser);
-    unsigned count = 1;
-    while (lex_token(parser->lex) == ',') {
-      lex_next(parser->lex);
-      on_line(parser);
-      count++;
-    }
-    patch_count(parser->bcode, i, count);
+    count++;
   }
-  else
-    parse_error(parser, "GOTO expected");
+  patch_count(parser->bcode, i, count);
 }
 
 static void on_line(PARSER* parser) {
