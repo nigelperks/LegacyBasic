@@ -78,6 +78,7 @@ enum {
   B_PRINT_COMMA,
   B_PRINT_NUM,
   B_PRINT_STR,
+  B_CLS,
   // input
   B_INPUT_BUF,
   B_INPUT_END,

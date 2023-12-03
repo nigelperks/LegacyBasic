@@ -10,6 +10,7 @@
 const KEYWORD basic_keywords[] = {
   { "AND", 3, TOK_AND },
   { "CLEAR", 5, TOK_CLEAR },
+  { "CLS", 3, TOK_CLS },
   { "DATA", 4, TOK_DATA },
   { "DEF", 3, TOK_DEF },
   { "DIM", 3, TOK_DIM },

@@ -18,6 +18,7 @@
 #include "utils.h"
 #include "interrupt.h"
 #include "parse.h"
+#include "os.h"
 
 #define MAX_NUM_STACK (16)
 #define MAX_STR_STACK (8)
@@ -1108,6 +1109,9 @@ static void execute(VM* vm) {
       efree(s);
       break;
     }
+    case B_CLS:
+      clear_screen();
+      break;
     // input
     case B_INPUT_BUF:
       if (i->u.str)

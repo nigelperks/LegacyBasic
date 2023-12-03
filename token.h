@@ -23,6 +23,7 @@ enum {
 enum {
   TOK_AND = FIRST_KEYWORD_TOKEN,
   TOK_CLEAR,
+  TOK_CLS,
   TOK_DATA,
   TOK_DEF,
   TOK_DIM,

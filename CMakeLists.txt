@@ -23,6 +23,7 @@ add_executable(LegacyBasic
   keyword.c
   lbasic.c
   lexer.c
+  os.c
   paren.c
   parse.c
   run.c

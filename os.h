@@ -4,12 +4,26 @@
 
 #pragma once
 
-#if defined LINUX || defined linux
+#ifndef LINUX
+#if defined linux
+#define LINUX
+#endif
+#endif
+
+#ifndef WINDOWS
+#if defined _WINDOWS || defined _WIN32 || defined _WIN64
+#define WINDOWS
+#endif
+#endif
+
+#if defined LINUX
 #define STRICMP strcasecmp
 #define STRNICMP strncasecmp
-#elif defined _WINDOWS || defined _WIN32 || defined _WIN64
+#elif defined WINDOWS
 #define STRICMP _stricmp
 #define STRNICMP _strnicmp
 #else
 #error unknown operating system
 #endif
+
+void clear_screen(void);

@@ -77,6 +77,7 @@ static const struct {
   { "PRINT-COMMA", BF_IMPLICIT },
   { "PRINT-NUM", BF_IMPLICIT },
   { "PRINT-STR", BF_IMPLICIT },
+  { "CLS", BF_IMPLICIT },
   // input
   { "INPUT-BUF", BF_STR },
   { "INPUT-END", BF_IMPLICIT },

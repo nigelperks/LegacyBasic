@@ -140,6 +140,7 @@ static void complete_statement(PARSER* parser) {
 }
 
 static void clear_statement(PARSER*);
+static void cls_statement(PARSER*);
 static void data_statement(PARSER*);
 static void def_statement(PARSER*);
 static void dim_statement(PARSER*);
@@ -167,6 +168,7 @@ static bool statement(PARSER* parser) {
   bool continues = false;
   switch (lex_token(parser->lex)) {
     case TOK_CLEAR: clear_statement(parser); break;
+    case TOK_CLS: cls_statement(parser); break;
     case TOK_DATA: data_statement(parser); break;
     case TOK_DEF: def_statement(parser); break;
     case TOK_DIM: dim_statement(parser); break;
@@ -210,6 +212,11 @@ static int identifier(PARSER*, unsigned *name, unsigned *parameters);
 static void clear_statement(PARSER* parser) {
   match(parser, TOK_CLEAR);
   emit(parser->bcode, B_CLEAR);
+}
+
+static void cls_statement(PARSER* parser) {
+  match(parser, TOK_CLS);
+  emit(parser->bcode, B_CLS);
 }
 
 static void datum(PARSER*);
