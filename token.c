@@ -28,6 +28,7 @@ const KEYWORD basic_keywords[] = {
   { "ON", 2, TOK_ON },
   { "OR", 2, TOK_OR },
   { "PRINT", 5, TOK_PRINT },
+  { "RANDOMIZE", 9, TOK_RANDOMIZE },
   { "READ", 4, TOK_READ },
   { "REM", 3, TOK_REM },
   { "RESTORE", 7, TOK_RESTORE },

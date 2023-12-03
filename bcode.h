@@ -94,6 +94,9 @@ enum {
   B_READ_NUM,
   B_READ_STR,
   B_RESTORE,
+  // random numbers
+  B_RAND,
+  B_SEED,
   // builtins
   B_ABS,
   B_ASC,

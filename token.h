@@ -41,6 +41,7 @@ enum {
   TOK_ON,
   TOK_OR,
   TOK_PRINT,
+  TOK_RANDOMIZE,
   TOK_READ,
   TOK_REM,
   TOK_RESTORE,

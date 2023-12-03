@@ -1237,6 +1237,13 @@ static void execute(VM* vm) {
     case B_RESTORE:
       vm->data = 0;
       break;
+    // random
+    case B_RAND:
+      srand((unsigned)time(NULL));
+      break;
+    case B_SEED:
+      srand(pop_unsigned(vm));
+      break;
     // builtins
     case B_ASC: {
       char* s = pop_str(vm);

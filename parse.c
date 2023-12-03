@@ -156,6 +156,7 @@ static void line_input_statement(PARSER*);
 static void next_statement(PARSER*);
 static void on_statement(PARSER*);
 static void print_statement(PARSER*);
+static void randomize_statement(PARSER*);
 static void read_statement(PARSER*);
 static void rem_statement(PARSER*);
 static void restore_statement(PARSER*);
@@ -183,6 +184,7 @@ static bool statement(PARSER* parser) {
     case TOK_NEXT: next_statement(parser); break;
     case TOK_ON: on_statement(parser); break;
     case TOK_PRINT: case '?': print_statement(parser); break;
+    case TOK_RANDOMIZE: randomize_statement(parser); break;
     case TOK_READ: read_statement(parser); break;
     case TOK_REM: rem_statement(parser); break;
     case TOK_RESTORE: restore_statement(parser); break;
@@ -595,6 +597,16 @@ static void print_builtin(PARSER* parser, int opcode) {
 
 bool name_is_print_builtin(const char* name) {
   return STRICMP(name, "SPC") == 0 || STRICMP(name, "TAB") == 0;
+}
+
+static void randomize_statement(PARSER* parser) {
+  match(parser, TOK_RANDOMIZE);
+  if (eos(parser->lex))
+    emit(parser->bcode, B_RAND);
+  else {
+    numeric_expression(parser);
+    emit(parser->bcode, B_SEED);
+  }
 }
 
 static void rem_statement(PARSER* parser) {
