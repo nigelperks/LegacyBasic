@@ -68,6 +68,13 @@ static void lex_error(LEX* lex, const char* fmt, ...) {
   va_end(ap);
 }
 
+static void validate(LEX* lex, int c) {
+  if (c != EOF && (c < 0 || c >= 127)) {
+    lex_error(lex, "invalid character on line: value %d\n", c);
+    exit(EXIT_FAILURE);
+  }
+}
+
 static int lex_char_pos(LEX* lex, unsigned *pos) {
   assert(lex != NULL);
   assert(pos != NULL);
@@ -82,7 +89,9 @@ static int lex_char_pos(LEX* lex, unsigned *pos) {
   if (lex->text[lex->pos] == '\0')
     return '\n';
 
-  return lex->text[lex->pos++];
+  int c = lex->text[lex->pos++];
+  validate(lex, c);
+  return c;
 }
 
 static int lex_char(LEX* lex) {
@@ -94,7 +103,9 @@ static int lex_char(LEX* lex) {
   if (lex->text[lex->pos] == '\0')
     return '\n';
 
-  return lex->text[lex->pos++];
+  int c = lex->text[lex->pos++];
+  validate(lex, c);
+  return c;
 }
 
 int lex_peek(LEX* lex) {
@@ -106,7 +117,9 @@ int lex_peek(LEX* lex) {
   if (lex->text[lex->pos] == '\0')
     return '\n';
 
-  return lex->text[lex->pos];
+  int c = lex->text[lex->pos];
+  validate(lex, c);
+  return c;
 }
 
 void lex_discard(LEX* lex) {
