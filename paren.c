@@ -371,7 +371,7 @@ static void test_insert_builtins(CuTest* tc) {
 
   insert_builtins(&ps, names);
 
-  CuAssertIntEquals(tc, 23, ps.used); // number of elements of builtins[] in builtin.c
+  CuAssertIntEquals(tc, 25, ps.used); // number of elements of builtins[] in builtin.c
 
   CuAssertIntEquals(tc, 0, ps.sym[0].name);
   CuAssertStrEquals(tc, "ABS", stringlist_item(names, 0));
@@ -383,10 +383,10 @@ static void test_insert_builtins(CuTest* tc) {
   CuAssertIntEquals(tc, PK_BUILTIN, ps.sym[3].kind);
   CuAssertIntEquals(tc, TYPE_STR, ps.sym[3].type);
 
-  CuAssertIntEquals(tc, 22, ps.sym[22].name);
-  CuAssertStrEquals(tc, "VAL", stringlist_item(names, 22));
-  CuAssertIntEquals(tc, PK_BUILTIN, ps.sym[22].kind);
-  CuAssertIntEquals(tc, TYPE_NUM, ps.sym[22].type);
+  CuAssertIntEquals(tc, 24, ps.sym[24].name);
+  CuAssertStrEquals(tc, "VAL", stringlist_item(names, 24));
+  CuAssertIntEquals(tc, PK_BUILTIN, ps.sym[24].kind);
+  CuAssertIntEquals(tc, TYPE_NUM, ps.sym[24].type);
 
   deinit_paren_symbols(&ps);
   delete_stringlist(names);

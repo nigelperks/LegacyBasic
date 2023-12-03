@@ -101,6 +101,7 @@ enum {
   B_CHR,
   B_COS,
   B_EXP,
+  B_INKEY,
   B_INT,
   B_LEFT,
   B_LEN,

@@ -21,7 +21,13 @@
 #if defined LINUX
 #define STRICMP strcasecmp
 #define STRNICMP strncasecmp
+#error need KBHIT and GETCH for Linux
+#define HAS_KBHIT 0
+#define HAS_GETCH 0
 #elif defined WINDOWS
+#include <conio.h>
+#define HAS_KBHIT 1
+#define HAS_GETCH 1
 #define STRICMP _stricmp
 #define STRNICMP _strnicmp
 #else

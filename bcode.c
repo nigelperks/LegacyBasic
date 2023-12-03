@@ -100,6 +100,7 @@ static const struct {
   { "CHR", BF_IMPLICIT },
   { "COS", BF_IMPLICIT },
   { "EXP", BF_IMPLICIT },
+  { "INKEY", BF_IMPLICIT },
   { "INT", BF_IMPLICIT },
   { "LEFT", BF_IMPLICIT },
   { "LEN", BF_IMPLICIT },

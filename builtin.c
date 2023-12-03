@@ -17,7 +17,13 @@ BUILTIN builtins[] = {
   { "COS",    TYPE_NUM, "n",   B_COS },
   { "EXP",    TYPE_NUM, "n",   B_EXP },
   { "FIX",    TYPE_ERR, NULL,  B_NOP },
+  { "GET$",   TYPE_ERR, NULL,  B_NOP },
   { "HEX$",   TYPE_ERR, NULL,  B_NOP },
+#if HAS_KBHIT && HAS_GETCH
+  { "INKEY$", TYPE_STR, "d",   B_INKEY },
+#else
+  { "INKEY$", TYPE_ERR, NULL,  B_NOP },
+#endif
   { "INT",    TYPE_NUM, "n",   B_INT },
   { "LEFT$",  TYPE_STR, "sn",  B_LEFT },
   { "LEN",    TYPE_NUM, "s",   B_LEN },

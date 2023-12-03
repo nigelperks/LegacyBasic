@@ -1266,6 +1266,20 @@ static void execute(VM* vm) {
     case B_EXP:
       push(vm, exp(pop(vm)));
       break;
+    case B_INKEY:
+#if HAS_KBHIT && HAS_GETCH
+      if (_kbhit()) {
+        char buf[2];
+        buf[0] = _getch();
+        buf[1] = '\0';
+        push_str(vm, buf);
+      }
+      else
+        push_str(vm, "");
+#else
+      run_error(vm, "INKEY$ is not supported\n");
+#endif
+      break;
     case B_INT:
       push(vm, floor(pop(vm)));
       break;
