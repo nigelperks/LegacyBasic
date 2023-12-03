@@ -22,7 +22,8 @@ static int unit_tests(void);
 static void print_version(void);
 static void help(bool full);
 static void list_file(const char* name);
-static void compile_file(int mode, const char* name, bool keywords_anywhere, bool trace_basic, bool trace_for);
+static void compile_file(int mode, const char* name, bool keywords_anywhere,
+                         bool trace_basic, bool trace_for, bool trace_log);
 
 enum mode { LIST, PARSE, CODE, RUN, TEST };
 
@@ -31,6 +32,7 @@ int main(int argc, char* argv[]) {
   const char* name = NULL;
   bool trace_basic = false;
   bool trace_for = false;
+  bool trace_log = false;
   bool keywords_anywhere = false;
   bool quiet = false;
   bool report_memory = false;
@@ -61,6 +63,8 @@ int main(int argc, char* argv[]) {
       trace_basic = true;
     else if (strcmp(arg, "--trace-for") == 0 || strcmp(arg, "-f") == 0)
       trace_for = true;
+    else if (strcmp(arg, "--trace-log") == 0 || strcmp(arg, "-g") == 0)
+      trace_log = true;
     else if (strcmp(arg, "--keywords-anywhere") == 0 || strcmp(arg, "-k") == 0)
       keywords_anywhere = true;
     else if (strcmp(arg, "--randomize") == 0 || strcmp(arg, "-z") == 0)
@@ -92,7 +96,7 @@ int main(int argc, char* argv[]) {
   else if (mode == LIST)
     list_file(name);
   else
-    compile_file(mode, name, keywords_anywhere, trace_basic, trace_for);
+    compile_file(mode, name, keywords_anywhere, trace_basic, trace_for, trace_log);
 
   if (report_memory) {
     printf("malloc: %10lu\n", malloc_count);
@@ -186,12 +190,13 @@ static void list_file(const char* name) {
     printf("%5u %s\n", source_linenum(source, i), source_text(source, i));
 }
 
-static void compile_file(int mode, const char* name, bool keywords_anywhere, bool trace_basic, bool trace_for) {
+static void compile_file(int mode, const char* name, bool keywords_anywhere,
+                         bool trace_basic, bool trace_for, bool trace_log) {
   SOURCE* source = load_source_file(name);
   if (source == NULL)
     exit(EXIT_FAILURE);
 
-  VM* vm = new_vm(keywords_anywhere, trace_basic, trace_for);
+  VM* vm = new_vm(keywords_anywhere, trace_basic, trace_for, trace_log);
   vm_take_source(vm, source);
 
   switch (mode) {

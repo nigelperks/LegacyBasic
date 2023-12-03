@@ -9,7 +9,7 @@
 
 typedef struct vm VM;
 
-VM* new_vm(bool keywords_anywhere, bool trace_basic, bool trace_for);
+VM* new_vm(bool keywords_anywhere, bool trace_basic, bool trace_for, bool trace_log);
 void delete_vm(VM*);
 
 // Maintain a source program.

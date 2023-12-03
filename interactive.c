@@ -40,7 +40,8 @@ typedef struct {
 
 static IMMED* new_immediate(bool keywords_anywhere, bool trace_basic, bool trace_for) {
   IMMED* p = emalloc(sizeof *p);
-  p->vm = new_vm(keywords_anywhere, trace_basic, trace_for);
+  bool trace_log = false;
+  p->vm = new_vm(keywords_anywhere, trace_basic, trace_for, trace_log);
   p->lex = new_lex(NULL, commands, true);
   return p;
 }

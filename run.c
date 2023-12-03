@@ -76,6 +76,7 @@ struct vm {
   bool keywords_anywhere;
   bool trace_basic;
   bool trace_for;
+  bool trace_log;
   unsigned short array_base;
   bool strict_dim;
   bool strict_for;
@@ -128,13 +129,14 @@ static void reset_vm(VM* vm) {
   vm->input_pc = 0;
 }
 
-VM* new_vm(bool keywords_anywhere, bool trace_basic, bool trace_for) {
+VM* new_vm(bool keywords_anywhere, bool trace_basic, bool trace_for, bool trace_log) {
   VM* vm = ecalloc(1, sizeof *vm);
   vm->env = new_environment_with_builtins();
   reset_vm(vm);
   vm->keywords_anywhere = keywords_anywhere;
   vm->trace_basic = trace_basic;
   vm->trace_for = trace_for;
+  vm->trace_log = trace_log;
   vm->input_prompt = true;
   return vm;
 }
@@ -191,10 +193,21 @@ static void run_error(VM* vm, const char* fmt, ...) {
   longjmp(vm->errjmp, 1);
 }
 
+static void print_stack(const VM* vm) {
+  fputs("STACK:", stderr);
+  for (unsigned i = 0; i < vm->sp; i++)
+    fprintf(stderr, " %g", vm->stack[i]);
+  putc('\n', stderr);
+}
+
 static double pop(VM* vm) {
   if (vm->sp == 0)
     run_error(vm, "numeric stack empty\n");
   vm->sp--;
+
+  if (vm->trace_log)
+    print_stack(vm);
+
   return vm->stack[vm->sp];
 }
 
@@ -227,6 +240,9 @@ static void push(VM* vm, double num) {
   if (vm->sp >= MAX_NUM_STACK)
     run_error(vm, "numeric stack overflow\n");
   vm->stack[vm->sp++] = num;
+
+  if (vm->trace_log)
+    print_stack(vm);
 }
 
 static void push_logic(VM* vm, int n) {
@@ -645,6 +661,7 @@ static void dump_for_stack(VM*, const char* tag);
 static const char* find_data(VM*);
 
 static char* convert(const char* string, double *val);
+static void ensure_newline(VM*);
 
 static void execute(VM* vm) {
   assert(vm->pc < vm->bc->used);
@@ -660,6 +677,11 @@ static void execute(VM* vm) {
       if (vm->trace_basic) {
         printf("[%u]", source_linenum(vm->source, i->u.line));
         fflush(stdout);
+      }
+      if (vm->trace_log) {
+        ensure_newline(vm);
+        print_source_line(vm->source, vm->source_line, stderr);
+        putc('\n', stderr);
       }
       break;
     // whole environment
@@ -1089,6 +1111,7 @@ static void execute(VM* vm) {
       unsigned k = pop_unsigned(vm);
       while (k--)
         putchar(' '), vm->col++;
+      fflush(stdout);
       break;
     }
     case B_PRINT_TAB: {
@@ -1099,15 +1122,18 @@ static void execute(VM* vm) {
       }
       while (vm->col < k)
         putchar(' '), vm->col++;
+      fflush(stdout);
       break;
     }
     case B_PRINT_COMMA:
       do {
         putchar(' '), vm->col++;
       } while (vm->col % TAB_SIZE != 1);
+      fflush(stdout);
       break;
     case B_PRINT_NUM:
       vm->col += printf(" %g ", pop(vm));
+      fflush(stdout);
       break;
     case B_PRINT_STR: {
       char* s = pop_str(vm);
@@ -1119,10 +1145,12 @@ static void execute(VM* vm) {
           vm->col++;
       }
       efree(s);
+      fflush(stdout);
       break;
     }
     case B_CLS:
       clear_screen();
+      vm->col = 1;
       break;
     // input
     case B_INPUT_BUF:
@@ -1329,7 +1357,7 @@ static void execute(VM* vm) {
     case B_SIN:
       push(vm, sin(pop(vm)));
       break;
-    case B_SQR:
+     case B_SQR:
       push(vm, sqrt(pop(vm)));
       break;
     case B_TAN:
@@ -1352,6 +1380,13 @@ static void execute(VM* vm) {
       run_error(vm, "unknown opcode: %u\n", i->op);
   }
   vm->pc++;
+}
+
+static void ensure_newline(VM* vm) {
+  if (vm->col > 1) {
+    putchar('\n');
+    vm->col = 1;
+  }
 }
 
 static char* convert(const char* s, double *val) {
