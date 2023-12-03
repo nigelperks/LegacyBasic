@@ -25,7 +25,7 @@ compatibility.
 Run the NSIS installer:
 
 ```
-LegacyBasic-3.0.0-win64.exe
+LegacyBasic-3.1.0-win64.exe
 ```
 
 The executable is installed to `bin`, documents to `doc`.
