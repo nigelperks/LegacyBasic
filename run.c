@@ -1391,6 +1391,14 @@ static void execute(VM* vm) {
     case B_TAN:
       push(vm, tan(pop(vm)));
       break;
+    case B_TIME_STR: {
+      time_t t = time(NULL);
+      struct tm * tm = localtime(&t);
+      char buf[12];
+      sprintf(buf, "%02u:%02u:%02u", tm->tm_hour, tm->tm_min, tm->tm_sec);
+      push_str(vm, buf);
+      break;
+    }
     case B_VAL: {
       char* s = pop_str(vm);
       double x;

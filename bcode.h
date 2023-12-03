@@ -118,6 +118,7 @@ enum {
   B_SQR,
   B_STR,
   B_TAN,
+  B_TIME_STR,
   B_VAL,
 };
 

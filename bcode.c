@@ -117,6 +117,7 @@ static const struct {
   { "SQR", BF_IMPLICIT },
   { "STR", BF_IMPLICIT },
   { "TAN", BF_IMPLICIT },
+  { "TIME-STR", BF_IMPLICIT },
   { "VAL", BF_IMPLICIT },
 };
 

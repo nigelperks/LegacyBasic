@@ -37,6 +37,7 @@ BUILTIN builtins[] = {
   { "SQR",    TYPE_NUM, "n",   B_SQR },
   { "STR$",   TYPE_STR, "n",   B_STR },
   { "TAN",    TYPE_NUM, "n",   B_TAN },
+  { "TIME$",  TYPE_STR, "d",   B_TIME_STR },
   { "USR",    TYPE_ERR, NULL,  B_NOP },
   { "VAL",    TYPE_NUM, "s",   B_VAL },
 };
