@@ -613,12 +613,15 @@ void vm_print_bcode(VM* vm) {
     print_bcode(vm->program_bcode, vm->program_source, vm->env->names, stdout);
 }
 
-static void go_to(VM* vm, unsigned basic_line) {
+static unsigned find_basic_line(VM* vm, unsigned basic_line) {
   unsigned bcode_line;
   if (!bcode_find_basic_line(vm->program_bcode, basic_line, vm->program_source, &bcode_line))
     run_error(vm, "Line not found: %u\n", basic_line);
+  return bcode_line;
+}
 
-  vm->pc = bcode_line;
+static void go_to(VM* vm, unsigned basic_line) {
+  vm->pc = find_basic_line(vm, basic_line);
   vm->bc = vm->program_bcode;
   vm->source = vm->program_source;
 }
@@ -1237,6 +1240,9 @@ static void execute(VM* vm) {
     }
     case B_RESTORE:
       vm->data = 0;
+      break;
+    case B_RESTORE_LINE:
+      vm->data = find_basic_line(vm, i->u.line);
       break;
     // random
     case B_RAND:

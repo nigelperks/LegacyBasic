@@ -93,6 +93,7 @@ static const struct {
   { "READ-NUM", BF_PARAM },
   { "READ-STR", BF_PARAM },
   { "RESTORE", BF_IMPLICIT },
+  { "RESTORE-LINE", BF_BASIC_LINE },
   // random numbers
   { "RAND", BF_IMPLICIT },
   { "SEED", BF_IMPLICIT },

@@ -257,7 +257,10 @@ static void read_item(PARSER* parser) {
 
 static void restore_statement(PARSER* parser) {
   match(parser, TOK_RESTORE);
-  emit(parser->bcode, B_RESTORE);
+  if (lex_token(parser->lex) == TOK_NUM)
+    emit_line(parser->bcode, B_RESTORE_LINE, line_number(parser));
+  else
+    emit(parser->bcode, B_RESTORE);
 }
 
 static void parameter(PARSER*);
