@@ -187,6 +187,11 @@ static void help(bool full) {
     puts("    Print information about FOR loops at runtime.\n"
          "    For debugging the interpreter.\n");
 
+  puts("--trace-log, -g");
+  if (full)
+    puts("    Print a detailed log of program execution to stderr.\n"
+         "    For debugging the interpreter.\n");
+
 #ifdef UNIT_TEST
   puts("--unit-tests, -unittest");
   if (full)
