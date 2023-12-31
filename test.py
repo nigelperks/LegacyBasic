@@ -85,6 +85,9 @@ BinaryName = "LegacyBasic"
 BinaryDir = None
 
 for arg in sys.argv[1:]:
+  if arg in ["--help","-h","-?","/?"]:
+    print("Usage: test.py --tests=TESTS-DIR --dir=EXECUTABLE-DIR --bin=EXECUTABLE-NAME")
+    sys.exit(1)
   if arg.startswith("--tests="):
     TestsDir = arg[len("--tests="):]
   elif arg.startswith("--bin=") or arg.startswith("--exe="):
