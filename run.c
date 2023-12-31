@@ -667,7 +667,6 @@ static void dump_for_stack(VM*, const char* tag);
 static const char* find_data(VM*);
 
 static char* convert(const char* string, double *val);
-static void ensure_newline(VM*);
 
 static void execute(VM* vm) {
   assert(vm->pc < vm->bc->used);
@@ -685,7 +684,6 @@ static void execute(VM* vm) {
         fflush(stdout);
       }
       if (vm->trace_log) {
-        ensure_newline(vm);
         print_source_line(vm->source, vm->source_line, stderr);
         putc('\n', stderr);
       }
@@ -1418,13 +1416,6 @@ static void execute(VM* vm) {
       run_error(vm, "unknown opcode: %u\n", i->op);
   }
   vm->pc++;
-}
-
-static void ensure_newline(VM* vm) {
-  if (vm->col > 1) {
-    putchar('\n');
-    vm->col = 1;
-  }
 }
 
 static char* convert(const char* s, double *val) {
