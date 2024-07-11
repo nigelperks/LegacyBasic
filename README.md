@@ -5,6 +5,7 @@ programs, especially text-based games.
 
 Please see LICENSE.
 
+0. Manual
 1. Installer for Windows
 2. Building the interpreter from source
 3. Running a BASIC program in a file
@@ -13,6 +14,12 @@ Please see LICENSE.
 6. Technical details
 7. Contributions
 8. Bug reports
+
+
+## 0. USER MANUAL
+
+The user manual is in the repo in RST format in the `doc` folder,
+and in PDF format in the release.
 
 
 ## 1. INSTALLER FOR WINDOWS
@@ -128,8 +135,6 @@ When LegacyBasic is run with no BASIC source file specified, immediate mode is
 entered.
 
 Use BYE to return to the operating system.
-
-For details, see the user manual in the release.
 
 
 ## 5. REFERENCES
