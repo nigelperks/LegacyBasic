@@ -1,7 +1,6 @@
 cmake_minimum_required(VERSION 3.22.1)
 project(LegacyBasic DESCRIPTION "Legacy Basic" VERSION 3.2.0)
 set(LegacyBasic_COPYRIGHT "Copyright (c) 2022-24 Nigel Perks")
-include_directories("${PROJECT_BINARY_DIR}")
 if(MSVC)
   add_compile_options(
     $<$<CONFIG:>:/MT>
@@ -9,38 +8,7 @@ if(MSVC)
     $<$<CONFIG:Release>:/MT>
   )
 endif()
-add_executable(LegacyBasic
-  arrays.c
-  bcode.c
-  builtin.c
-  CuTest.c
-  def.c
-  emit.c
-  env.c
-  interactive.c
-  interrupt.c
-  keyword.c
-  lbasic.c
-  lexer.c
-  os.c
-  paren.c
-  parse.c
-  run.c
-  source.c
-  stringlist.c
-  stringuniq.c
-  token.c
-  utils.c
-)
-set_target_properties(LegacyBasic PROPERTIES C_STANDARD 11)
-if(UNIX OR LINUX)
-set(LBASIC_OUTPUT_NAME "legacy-basic")
-target_link_libraries(LegacyBasic PRIVATE m)
-else()
-set(LBASIC_OUTPUT_NAME "LegacyBasic")
-endif()
-set_target_properties(LegacyBasic PROPERTIES OUTPUT_NAME ${LBASIC_OUTPUT_NAME})
-target_compile_definitions(LegacyBasic PRIVATE UNIT_TEST)
+add_subdirectory(src)
 
 file(COPY_FILE "${PROJECT_SOURCE_DIR}/README.md" "${PROJECT_BINARY_DIR}/README.md")
 file(COPY_FILE "${PROJECT_SOURCE_DIR}/LICENSE" "${PROJECT_BINARY_DIR}/LICENSE")
@@ -78,9 +46,11 @@ if(NOT LBASIC_NOTEST)
   find_package(Python3 COMPONENTS Interpreter REQUIRED)
   enable_testing()
   add_test(NAME UnitTests COMMAND LegacyBasic "--unit-tests")
+  get_target_property(LBASIC_OUTPUT_NAME LegacyBasic OUTPUT_NAME)
   add_test(NAME RegressionTests
            COMMAND ${Python3_EXECUTABLE} "${PROJECT_SOURCE_DIR}/test.py"
                    "--tests=${PROJECT_SOURCE_DIR}/tests"
                    "--bin=${LBASIC_OUTPUT_NAME}"
+                   "--dir=src"
           )
 endif()
