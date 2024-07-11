@@ -357,7 +357,7 @@ and the ``INPUT`` statement is repeated.
 
 Example::
 
-  INPUT “Name, age”; name$, age
+  INPUT "Name, age"; name$, age
 
 See also ``LINE INPUT``.
 
@@ -382,7 +382,7 @@ A question mark is also always printed as a prompt.
 
 Example::
 
-  LINE INPUT “Name”; name$(i)
+  LINE INPUT "Name"; name$(i)
 
 NEXT
 ----
@@ -439,7 +439,7 @@ where column 1 is the first column.
 
 Example::
 
-  PRINT “Data: “; x$; TAB(20); x, (x+7)*2
+  PRINT "Data: "; x$; TAB(20); x, (x+7)*2
 
 RANDOMIZE
 ---------
@@ -469,7 +469,7 @@ READ
 Read numeric or string data from the ``DATA`` list into a variable or array element::
 
   10 READ a$, a
-  20 DATA “string item”, 3.14
+  20 DATA "string item", 3.14
 
 It is a run-time error to read non-numeric data into a numeric variable or array element.
 
@@ -484,7 +484,7 @@ The rest of the line is ignored by Legacy Basic.
 Example::
 
   10 REM this is a great program
-  20 PRINT “Hello”
+  20 PRINT "Hello"
 
 RESTORE
 -------
