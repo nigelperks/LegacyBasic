@@ -18,6 +18,7 @@
 #include "interactive.h"
 #include "stringuniq.h"
 #include "utils.h"
+#include "os.h"
 
 // These attributes are declared in C source instead of being generated
 // because it better supports both CMake and development builds.
@@ -36,7 +37,8 @@ static void help(bool full);
 static void list_file(const char* name);
 static void list_names(const char* name, bool crunched);
 static void compile_file(int mode, const char* name, bool keywords_anywhere,
-                         bool trace_basic, bool trace_for, bool trace_log);
+                         bool trace_basic, bool trace_for, bool trace_log,
+                         bool report_time);
 
 enum mode { LIST, LIST_NAMES, PARSE, CODE, RUN, TEST };
 
@@ -49,15 +51,18 @@ int main(int argc, char* argv[]) {
   bool keywords_anywhere = false;
   bool quiet = false;
   bool report_memory = false;
+  bool report_time = false;
 
   progname = "LegacyBasic.exe";
 
   for (int i = 1; i < argc; i++) {
     const char* arg = argv[i];
+    // Help
     if (strcmp(arg, "--help") == 0 || strcmp(arg, "-h") == 0 || strcmp(arg, "-?") == 0 || strcmp(arg, "/?") == 0)
       help(false);
     if (strcmp(arg, "--help-full") == 0 || strcmp(arg, "-hh") == 0)
       help(true);
+    // Modes
     else if (strcmp(arg, "--list") == 0 || strcmp(arg, "-l") == 0)
       mode = LIST;
     else if (strcmp(arg, "--list-names") == 0 || strcmp(arg, "-n") == 0)
@@ -72,20 +77,25 @@ int main(int argc, char* argv[]) {
     else if (strcmp(arg, "--unit-tests") == 0 || strcmp(arg, "-unittest") == 0)
       mode = TEST, report_memory = true;
 #endif
+    // Other options
+    else if (strcmp(arg, "--keywords-anywhere") == 0 || strcmp(arg, "-k") == 0)
+      keywords_anywhere = true;
+    else if (strcmp(arg, "--quiet") == 0 || strcmp(arg, "-q") == 0)
+      quiet = true;
+    else if (strcmp(arg, "--randomize") == 0 || strcmp(arg, "-z") == 0)
+      srand((unsigned)time(NULL));
     else if (strcmp(arg, "--report-memory") == 0 || strcmp(arg, "-m") == 0)
       report_memory = true;
+#if HAS_TIMER
+    else if (strcmp(arg, "--time") == 0 || strcmp(arg, "-i") == 0)
+      report_time = true;
+#endif
     else if (strcmp(arg, "--trace-basic") == 0 || strcmp(arg, "-t") == 0)
       trace_basic = true;
     else if (strcmp(arg, "--trace-for") == 0 || strcmp(arg, "-f") == 0)
       trace_for = true;
     else if (strcmp(arg, "--trace-log") == 0 || strcmp(arg, "-g") == 0)
       trace_log = true;
-    else if (strcmp(arg, "--keywords-anywhere") == 0 || strcmp(arg, "-k") == 0)
-      keywords_anywhere = true;
-    else if (strcmp(arg, "--randomize") == 0 || strcmp(arg, "-z") == 0)
-      srand((unsigned)time(NULL));
-    else if (strcmp(arg, "--quiet") == 0 || strcmp(arg, "-q") == 0)
-      quiet = true;
     else if (strcmp(arg, "--version") == 0 || strcmp(arg, "-v") == 0)
       print_version(), exit(EXIT_FAILURE);
     else if (arg[0] == '-')
@@ -113,7 +123,7 @@ int main(int argc, char* argv[]) {
   else if (mode == LIST_NAMES)
     list_names(name, keywords_anywhere);
   else
-    compile_file(mode, name, keywords_anywhere, trace_basic, trace_for, trace_log);
+    compile_file(mode, name, keywords_anywhere, trace_basic, trace_for, trace_log, report_time);
 
   if (report_memory) {
     putchar('\n');
@@ -256,8 +266,11 @@ static void list_names(const char* file_name, bool crunched) {
   delete_source(source);
 }
 
+static void timed_run(VM*, bool report_time);
+
 static void compile_file(int mode, const char* name, bool keywords_anywhere,
-                         bool trace_basic, bool trace_for, bool trace_log) {
+                         bool trace_basic, bool trace_for, bool trace_log,
+                         bool report_time) {
   SOURCE* source = load_source_file(name);
   if (source == NULL)
     exit(EXIT_FAILURE);
@@ -270,11 +283,26 @@ static void compile_file(int mode, const char* name, bool keywords_anywhere,
       vm_print_bcode(vm);
       break;
     case RUN:
-      run_program(vm);
+      timed_run(vm, report_time);
       break;
   }
 
   delete_vm(vm);
+}
+
+static void timed_run(VM* vm, bool report_time) {
+#if HAS_TIMER
+  TIMER timer;
+  start_timer(&timer);
+#endif
+
+  run_program(vm);
+
+#if HAS_TIMER
+  stop_timer(&timer);
+  if (report_time)
+    printf("Microseconds elapsed: %lld\n", elapsed_usec(&timer));
+#endif
 }
 
 #ifdef UNIT_TEST

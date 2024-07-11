@@ -23,10 +23,12 @@
 #define STRNICMP strncasecmp
 #define HAS_KBHIT 0
 #define HAS_GETCH 0
+#define HAS_TIMER 0
 #elif defined WINDOWS
 #include <conio.h>
 #define HAS_KBHIT 1
 #define HAS_GETCH 1
+#define HAS_TIMER 1
 #define STRICMP _stricmp
 #define STRNICMP _strnicmp
 #else
@@ -34,3 +36,15 @@
 #endif
 
 void clear_screen(void);
+
+#if HAS_TIMER
+typedef struct {
+  long long freq;
+  long long start;
+  long long stop;
+} TIMER;
+
+void start_timer(TIMER*);
+void stop_timer(TIMER*);
+long long elapsed_usec(const TIMER*);
+#endif // HAS_TIMER
