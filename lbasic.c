@@ -8,7 +8,6 @@
 #include <string.h>
 #include <time.h>
 #include <assert.h>
-#include "config.h"
 #include "source.h"
 #include "parse.h"
 #include "lexer.h"
@@ -19,6 +18,14 @@
 #include "interactive.h"
 #include "stringuniq.h"
 #include "utils.h"
+
+// These attributes are declared in C source instead of being generated
+// because it better supports both CMake and development builds.
+#define TITLE "Legacy Basic"
+#define VERSION_MAJOR 3
+#define VERSION_MINOR 2
+#define VERSION_PATCH 0
+#define COPYRIGHT "Copyright (c) 2022-24 Nigel Perks"
 
 #ifdef UNIT_TEST
 static int unit_tests(void);

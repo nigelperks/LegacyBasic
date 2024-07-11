@@ -86,7 +86,8 @@ BinaryDir = None
 
 for arg in sys.argv[1:]:
   if arg in ["--help","-h","-?","/?"]:
-    print("Usage: test.py --tests=TESTS-DIR --dir=EXECUTABLE-DIR --bin=EXECUTABLE-NAME")
+    print("Usage:   test.py --tests=TESTS-DIR --dir=EXECUTABLE-DIR --bin=EXECUTABLE-NAME")
+    print("Example: test.py --tests=tests --dir=Debug --bin=LegacyBasic.exe")
     sys.exit(1)
   if arg.startswith("--tests="):
     TestsDir = arg[len("--tests="):]

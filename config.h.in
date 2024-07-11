@@ -1,8 +1,0 @@
-#pragma once
-
-#define TITLE "@CMAKE_PROJECT_DESCRIPTION@"
-#define COPYRIGHT "@LegacyBasic_COPYRIGHT@"
-
-#define VERSION_MAJOR @LegacyBasic_VERSION_MAJOR@
-#define VERSION_MINOR @LegacyBasic_VERSION_MINOR@
-#define VERSION_PATCH @LegacyBasic_VERSION_PATCH@
