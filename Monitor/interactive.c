@@ -50,13 +50,14 @@ static int find_command(const char* cmd, unsigned len) {
 }
 
 static void help(void) {
-  puts("BYE");
-  puts("HELP");
-  puts("LIST [[start]-[end]]");
-  puts("LOAD \"program.bas\"");
-  puts("NEW");
-  puts("RUN");
-  puts("SAVE \"program.bas\"");
+  puts("BYE                    quit to operating system");
+  puts("HELP                   show this help");
+  puts("LIST [[start]-[end]]   list current file");
+  puts("LOAD \"program.bas\"     load source from file");
+  puts("NEW                    wipe current file from memory");
+  puts("RUN                    run current file as a Basic program");
+  puts("SAVE \"program.bas\"     save current file under given name");
+  puts("*DIR                   run DIR or other operating system command");
 }
 
 static bool get_line(char* cmd, unsigned cmd_size);
@@ -110,11 +111,14 @@ static bool check_eol(char* line);
 
 static void program_line(VM*, char* line);
 static void immediate(VM*, char* line, bool *quit);
+static void oscli(char* line);
 
 static void interpret(VM* vm, char* line, bool *quit) {
   char* p = skip_space(line);
   if (isdigit(*p))
     program_line(vm, p);
+  else if (*p == '*')
+    oscli(p+1);
   else if (*p && *p != '\n')
     immediate(vm, p, quit);
 }
@@ -259,6 +263,21 @@ static void await_newline(void) {
     ;
 }
 
+static void immediate_statement(VM* vm, const char* line) {
+  SOURCE* source = wrap_source_text(line);
+  trap_interrupt();
+  run_immediate(vm, source, /*keywords_anywhere*/ false);
+  untrap_interrupt();
+  delete_source(source);
+}
+
+static void oscli(char* line) {
+  line = skip_space(line);
+  if (*line == '\0' || *line == '\n')
+    return;
+  system(line);
+}
+
 static bool check_eol(char* line) {
   const char* p = skip_space(line);
   if (*p && *p != '\n') {
@@ -266,14 +285,6 @@ static bool check_eol(char* line) {
     return false;
   }
   return true;
-}
-
-static void immediate_statement(VM* vm, const char* line) {
-  SOURCE* source = wrap_source_text(line);
-  trap_interrupt();
-  run_immediate(vm, source, /*keywords_anywhere*/ false);
-  untrap_interrupt();
-  delete_source(source);
 }
 
 static char* skip_space(char* s) {

@@ -95,6 +95,14 @@ SAVE
 Save the current source file to disk under the given file name.
 Example: ``SAVE "prog.bas"``
 
+Operating system commands
+-------------------------
+A line beginning with ``*`` (asterisk) is passed to the operating system
+command line interpreter.
+
+Windows example: ``*DIR *.BAS``.
+
+
 Immediate statements
 --------------------
 Most BASIC statements can be used interactively.
