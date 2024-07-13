@@ -120,6 +120,7 @@ Passes = 0
 
 for sub in ["", "Release", "Debug"]:
   exe = os.path.abspath(os.path.join(BinaryDir, sub, BinaryName))
+  print("Looking for executable: " + exe)
   if os.path.isfile(exe):
     ExeFound += 1
     banner(exe)
