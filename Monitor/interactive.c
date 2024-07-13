@@ -18,6 +18,7 @@
 enum command_tokens {
   CMD_NONE,
   CMD_BYE,
+  CMD_HELP,
   CMD_LIST,
   CMD_LOAD,
   CMD_NEW,
@@ -31,6 +32,7 @@ static const struct command {
   short cmd;
 } commands[] = {
   { "BYE", 3, CMD_BYE },
+  { "HELP", 4, CMD_HELP },
   { "LIST", 4, CMD_LIST },
   { "LOAD", 4, CMD_LOAD },
   { "NEW", 3, CMD_NEW },
@@ -47,13 +49,26 @@ static int find_command(const char* cmd, unsigned len) {
   return CMD_NONE;
 }
 
+static void help(void) {
+  puts("BYE");
+  puts("HELP");
+  puts("LIST [[start]-[end]]");
+  puts("LOAD \"program.bas\"");
+  puts("NEW");
+  puts("RUN");
+  puts("SAVE \"program.bas\"");
+}
+
 static bool get_line(char* cmd, unsigned cmd_size);
 static void interpret(VM*, char* cmd, bool *quit);
 
-void interact(bool keywords_anywhere, bool trace_basic, bool trace_for) {
+void interact(bool keywords_anywhere, bool trace_basic, bool trace_for, bool quiet) {
   VM* vm = new_vm(keywords_anywhere, trace_basic, trace_for, /*trace_log*/ false);
   char cmd[128];
   bool quit = false;
+
+  if (!quiet)
+    puts("Type HELP to list commands\n");
 
   while (!quit && get_line(cmd, sizeof cmd))
     interpret(vm, cmd, &quit);
@@ -145,6 +160,9 @@ static void command(VM* vm, int cmd, char* line, bool *quit) {
     case CMD_BYE:
       if (check_eol(line))
         *quit = true;
+      break;
+    case CMD_HELP:
+      help();
       break;
     case CMD_NEW:
       if (check_eol(line)) {

@@ -70,7 +70,7 @@ int main(int argc, char* argv[]) {
   if (opt.file_name == NULL) {
     if (opt.mode != NO_MODE)
       fatal("invalid option for interactive mode\n");
-    interact(opt.keywords_anywhere, opt.trace_basic, opt.trace_for);
+    interact(opt.keywords_anywhere, opt.trace_basic, opt.trace_for, opt.quiet);
   }
   else 
     process_file(&opt);
