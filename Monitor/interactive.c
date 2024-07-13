@@ -15,6 +15,8 @@
 #include "os.h"
 #include "utils.h"
 
+static const unsigned PAGE = 24;
+
 enum command_tokens {
   CMD_NONE,
   CMD_BYE,
@@ -50,14 +52,14 @@ static int find_command(const char* cmd, unsigned len) {
 }
 
 static void help(void) {
-  puts("BYE                    quit to operating system");
-  puts("HELP                   show this help");
-  puts("LIST [[start]-[end]]   list current file");
-  puts("LOAD \"program.bas\"     load source from file");
-  puts("NEW                    wipe current file from memory");
-  puts("RUN                    run current file as a Basic program");
-  puts("SAVE \"program.bas\"     save current file under given name");
-  puts("*DIR                   run DIR or other operating system command");
+  puts("BYE                       quit to operating system");
+  puts("HELP                      show this help");
+  puts("LIST [[start]-[end]][P]   list current file");
+  puts("LOAD \"program.bas\"        load source from file");
+  puts("NEW                       wipe current file from memory");
+  puts("RUN                       run current file as a Basic program");
+  puts("SAVE \"program.bas\"        save current file under given name");
+  puts("*DIR                      run DIR or other operating system command");
 }
 
 static bool get_line(char* cmd, unsigned cmd_size);
@@ -157,7 +159,8 @@ static void immediate(VM* vm, char* line, bool *quit) {
 }
 
 static char* get_list_numbers(char* line, unsigned *start, unsigned *end);
-static void list(const VM*, unsigned start, unsigned end);
+static char* get_page_flag(char* line, bool *page);
+static void list(const VM*, unsigned start, unsigned end, bool page);
 
 static void command(VM* vm, int cmd, char* line, bool *quit) {
   switch (cmd) {
@@ -176,9 +179,11 @@ static void command(VM* vm, int cmd, char* line, bool *quit) {
       break;
     case CMD_LIST: {
       unsigned start = 0, end = -1;
+      bool page = false;
       line = get_list_numbers(line, &start, &end);
+      line = get_page_flag(line, &page);
       if (check_eol(line))
-        list(vm, start, end);
+        list(vm, start, end, page);
       break;
     }
     case CMD_LOAD: {
@@ -231,22 +236,32 @@ static char* get_list_numbers(char* p, unsigned *start, unsigned *end) {
   return p;
 }
 
+static char* get_page_flag(char* line, bool *page) {
+  line = skip_space(line);
+  if (tolower(*line) == 'p') {
+    *page = true;
+    line++;
+  }
+  else
+    *page = false;
+  return line;
+}
+
 static void await_newline(void);
 
 // List source between given BASIC line numbers.
 // Pause after each page.
-static void list(const VM* vm, unsigned start, unsigned end) {
+static void list(const VM* vm, unsigned start, unsigned end, bool page) {
   assert(vm != NULL);
   if (vm_source_lines(vm)) {
     trap_interrupt();
     unsigned count = 0;
-    const unsigned PAGE = 22;
     for (unsigned i = 0; i < vm_source_lines(vm) && !interrupted; i++) {
       const unsigned lineno = vm_source_linenum(vm, i);
       if (lineno >= start && lineno <= end) {
         printf("%u %s", vm_source_linenum(vm, i), vm_source_text(vm, i));
         count++;
-        if (count % PAGE == PAGE-1 && i + 1 < vm_source_lines(vm))
+        if (page && count % PAGE == PAGE-1 && i + 1 < vm_source_lines(vm))
           await_newline();
         else
           putchar('\n');

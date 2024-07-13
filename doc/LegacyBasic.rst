@@ -75,7 +75,15 @@ A starting line number, an ending line number, or a line number range may be giv
 
   LIST start – end 
 
-The command might pause after each page of the listing: press ENTER to continue the listing.
+A flag, ``P`` or ``p``, may also be given, to pause after each page of listing:
+press ENTER to continue the listing, CTRL-C to stop it.
+
+Examples::
+
+  LIST
+  LIST p
+  LIST 1000-2000
+  LIST 3000-p
 
 LOAD
 ^^^^
