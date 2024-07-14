@@ -29,6 +29,7 @@
 struct vm {
   SOURCE* program_source;
   BCODE* program_bcode;
+  BCODE_INDEX* bcode_index;
   ENV* env;
   const SOURCE* source;
   const BCODE* bc;
@@ -144,6 +145,7 @@ VM* new_vm(bool keywords_anywhere, bool trace_basic, bool trace_for, bool trace_
 void delete_vm(VM* vm) {
   if (vm) {
     reset_vm(vm);
+    delete_bcode_index(vm->bcode_index);
     delete_source(vm->program_source);
     delete_bcode(vm->program_bcode);
     delete_environment(vm->env);
@@ -603,7 +605,10 @@ static bool ensure_program_compiled(VM* vm) {
       puts("Compiling...");
     reset_vm(vm);
     vm->program_bcode = parse_source(vm->program_source, vm->env->names, vm->keywords_anywhere);
-    return vm->program_bcode != NULL;
+    if (vm->program_bcode == NULL)
+      return false;
+    delete_bcode_index(vm->bcode_index);
+    vm->bcode_index = bcode_index(vm->program_bcode, vm->program_source);
   }
 
   return true;
@@ -625,7 +630,7 @@ void vm_print_bcode(VM* vm) {
 
 static unsigned find_basic_line(VM* vm, unsigned basic_line) {
   unsigned bcode_line;
-  if (!bcode_find_basic_line(vm->program_bcode, basic_line, vm->program_source, &bcode_line))
+  if (!bcode_find_indexed_basic_line(vm->bcode_index, basic_line, &bcode_line))
     run_error(vm, "Line not found: %u\n", basic_line);
   return bcode_line;
 }

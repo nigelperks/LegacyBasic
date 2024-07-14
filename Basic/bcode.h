@@ -162,6 +162,10 @@ BINST* bcode_next(BCODE*, unsigned op);
 void print_bcode(const BCODE*, const SOURCE*, const STRINGLIST* names, FILE*);
 void print_binst(const BCODE*, unsigned index, const SOURCE*, const STRINGLIST* names, FILE*);
 
-bool bcode_find_basic_line(const BCODE*, unsigned basic_line, const SOURCE*, unsigned *bcode_line);
-
 BCODE* bcode_copy_def(const BCODE*, unsigned start);
+
+typedef struct bcode_index BCODE_INDEX;
+
+BCODE_INDEX* bcode_index(const BCODE*, const SOURCE*);
+void delete_bcode_index(BCODE_INDEX*);
+bool bcode_find_indexed_basic_line(const BCODE_INDEX*, unsigned basic_line, unsigned *bcode_pos);
