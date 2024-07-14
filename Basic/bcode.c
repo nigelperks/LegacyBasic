@@ -177,12 +177,12 @@ void print_binst(const BCODE* p, unsigned j, const SOURCE* source, const STRINGL
     case BF_IMPLICIT:
       break;
     case BF_SOURCE_LINE:
-      fprintf(fp, "%u", i->u.line);
+      fprintf(fp, "%u", i->u.source_line);
       if (source)
-        fprintf(fp, ": %u %s", source_linenum(source, i->u.line), source_text(source, i->u.line));
+        fprintf(fp, ": %u %s", source_linenum(source, i->u.source_line), source_text(source, i->u.source_line));
       break;
     case BF_BASIC_LINE:
-      fprintf(fp, "%u", i->u.line);
+      fprintf(fp, "%u", i->u.basic_line);
       break;
     case BF_NUM:
       fprintf(fp, "%g", i->u.num);
@@ -245,7 +245,7 @@ static unsigned line_count(const BCODE* bc) {
   assert(bc != NULL);
   unsigned n = 0;
   for (unsigned i = 0; i < bc->used; i++) {
-    if (bc->inst[i].op == B_LINE)
+    if (bc->inst[i].op == B_SOURCE_LINE)
       n++;
   }
   return n;
@@ -275,8 +275,8 @@ BCODE_INDEX* bcode_index(const BCODE* bc, const SOURCE* source) {
   idx->nodes = emalloc(lines * sizeof idx->nodes[0]);
   struct line_node * node = idx->nodes;
   for (unsigned i = 0; i < bc->used; i++) {
-    if (bc->inst[i].op == B_LINE) {
-      node->basic_line = source_linenum(source, bc->inst[i].u.line);
+    if (bc->inst[i].op == B_SOURCE_LINE) {
+      node->basic_line = source_linenum(source, bc->inst[i].u.source_line);
       node->bcode_pos = i;
       unsigned h = node->basic_line % BCODE_HASH_SIZE;
       node->next = idx->hash[h];
@@ -349,7 +349,7 @@ static void test_bcode(CuTest* tc) {
   j = name_entry(names, "cab$");
   CuAssertIntEquals(tc, 0, j);
 
-  i = bcode_next(p, B_LINE);
+  i = bcode_next(p, B_SOURCE_LINE);
   CuAssertPtrNotNull(tc, i);
   CuAssertIntEquals(tc, 2, p->used);
 
@@ -430,15 +430,15 @@ static void test_bcode_index(CuTest* tc) {
   delete_bcode_index(idx);
 
   // Compiled bcode
-  emit_line(bc, B_LINE, 0);
+  emit_source_line(bc, B_SOURCE_LINE, 0);
   emit_num(bc, B_PUSH_NUM, 3);
   emit_var(bc, B_SET_SIMPLE_NUM, 0);
-  emit_line(bc, B_LINE, 1);
+  emit_source_line(bc, B_SOURCE_LINE, 1);
   emit_num(bc, B_PUSH_NUM, 7);
   emit_var(bc, B_SET_SIMPLE_NUM, 1);
-  emit_line(bc, B_LINE, 2);
+  emit_source_line(bc, B_SOURCE_LINE, 2);
   // omit PRINT code to test consecutive LINE
-  emit_line(bc, B_LINE, 3);
+  emit_source_line(bc, B_SOURCE_LINE, 3);
   emit(bc, B_END);
   idx = bcode_index(bc, src);
 

@@ -6,7 +6,8 @@
 #include "bcode.h"
 
 unsigned emit(BCODE*, unsigned op);
-void emit_line(BCODE*, unsigned op, unsigned line);
+void emit_source_line(BCODE*, unsigned op, unsigned line);
+void emit_basic_line(BCODE*, unsigned op, unsigned line);
 void emit_num(BCODE*, unsigned op, double num);
 void emit_str(BCODE*, unsigned op, const char* str);
 void emit_str_ptr(BCODE*, unsigned op, char* str);

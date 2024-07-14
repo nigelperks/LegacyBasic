@@ -690,10 +690,10 @@ static void execute(VM* vm) {
     case B_NOP:
       break;
     // source
-    case B_LINE:
-      vm->source_line = i->u.line;
+    case B_SOURCE_LINE:
+      vm->source_line = i->u.source_line;
       if (vm->trace_basic) {
-        printf("[%u]", source_linenum(vm->source, i->u.line));
+        printf("[%u]", source_linenum(vm->source, i->u.source_line));
         fflush(stdout);
       }
       if (vm->trace_log) {
@@ -944,17 +944,17 @@ static void execute(VM* vm) {
       vm->stopped = true;
       return;
     case B_GOTO:
-      go_to(vm, i->u.line);
+      go_to(vm, i->u.basic_line);
       return;
     case B_GOTRUE:
       if (pop(vm)) {
-        go_to(vm, i->u.line);
+        go_to(vm, i->u.basic_line);
         return;
       }
       break;
     case B_GOSUB:
       push_return(vm, vm->pc + 1);
-      go_to(vm, i->u.line);
+      go_to(vm, i->u.basic_line);
       return;
     case B_RETURN:
       pop_return(vm); // pops PC to continue from
@@ -1096,14 +1096,14 @@ static void execute(VM* vm) {
         run_error(vm, "internal error: ON-LINE expected\n");
       if (i->op == B_ON_GOSUB)
         push_return(vm, vm->pc + i->u.count + 1);
-      go_to(vm, vm->bc->inst[k].u.line);
+      go_to(vm, vm->bc->inst[k].u.basic_line);
       return;
     }
     case B_IF_THEN: // IF ... THEN statements  -- skip to next line if condition false
       if (!pop(vm)) {
         do {
           vm->pc++;
-        } while (vm->pc < vm->bc->used && vm->bc->inst[vm->pc].op != B_LINE);
+        } while (vm->pc < vm->bc->used && vm->bc->inst[vm->pc].op != B_SOURCE_LINE);
         return;
       }
       break;
@@ -1117,7 +1117,7 @@ static void execute(VM* vm) {
     case B_ELSE: // THEN statements ELSE statements -- skip to next line after executing THEN section
       do {
         vm->pc++;
-      } while (vm->pc < vm->bc->used && vm->bc->inst[vm->pc].op != B_LINE);
+      } while (vm->pc < vm->bc->used && vm->bc->inst[vm->pc].op != B_SOURCE_LINE);
       return;
     // output
     case B_PRINT_LN:
@@ -1255,7 +1255,7 @@ static void execute(VM* vm) {
       vm->data = 0;
       break;
     case B_RESTORE_LINE:
-      vm->data = find_basic_line(vm, i->u.line);
+      vm->data = find_basic_line(vm, i->u.basic_line);
       break;
     // random
     case B_RAND:

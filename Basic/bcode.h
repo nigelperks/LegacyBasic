@@ -14,7 +14,7 @@ enum {
   // placeholder
   B_NOP,
   // source
-  B_LINE,
+  B_SOURCE_LINE,
   // whole environment
   B_CLEAR,
   // numbers
@@ -136,7 +136,8 @@ enum bcode_format {
 typedef struct {
   unsigned short op;
   union {
-    unsigned short line;
+    unsigned source_line;
+    unsigned basic_line;
     double num;
     char* str;
     unsigned name;

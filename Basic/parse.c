@@ -120,7 +120,7 @@ static void complete_statement(PARSER*);
 
 static void parse_line(PARSER* parser, unsigned line_index, unsigned lineno, const char* text) {
   lex_line(parser->lex, lineno, text);
-  emit_line(parser->bcode, B_LINE, line_index);
+  emit_source_line(parser->bcode, B_SOURCE_LINE, line_index);
   parser->if_then = 0;
   complete_statement(parser);
   while (lex_token(parser->lex) == ':') {
@@ -258,7 +258,7 @@ static void read_item(PARSER* parser) {
 static void restore_statement(PARSER* parser) {
   match(parser, TOK_RESTORE);
   if (lex_token(parser->lex) == TOK_NUM)
-    emit_line(parser->bcode, B_RESTORE_LINE, line_number(parser));
+    emit_basic_line(parser->bcode, B_RESTORE_LINE, line_number(parser));
   else
     emit(parser->bcode, B_RESTORE);
 }
@@ -380,13 +380,13 @@ static unsigned for_variable(PARSER* parser) {
 static void gosub_statement(PARSER* parser) {
   match(parser, TOK_GOSUB);
   unsigned line = line_number(parser);
-  emit_line(parser->bcode, B_GOSUB, line);
+  emit_basic_line(parser->bcode, B_GOSUB, line);
 }
 
 static void goto_statement(PARSER* parser) {
   match(parser, TOK_GOTO);
   unsigned line = line_number(parser);
-  emit_line(parser->bcode, B_GOTO, line);
+  emit_basic_line(parser->bcode, B_GOTO, line);
 }
 
 // Return true if statement continues: IF ... THEN more-statements
@@ -397,7 +397,7 @@ static bool if_statement(PARSER* parser) {
   match(parser, TOK_THEN);
   if (lex_token(parser->lex) == TOK_NUM) {
     unsigned line = line_number(parser);
-    emit_line(parser->bcode, B_GOTRUE, line);
+    emit_basic_line(parser->bcode, B_GOTRUE, line);
     parser->if_then = 0;
     return false;
   }
@@ -412,7 +412,7 @@ static bool else_clause(PARSER* parser) {
       // IF ... THEN line-number ELSE ...
       match(parser, TOK_ELSE);
       unsigned line = line_number(parser);
-      emit_line(parser->bcode, B_GOTO, line);
+      emit_basic_line(parser->bcode, B_GOTO, line);
       return false;
     }
     parse_error(parser, "unexpected ELSE");
@@ -534,7 +534,7 @@ static void on_statement(PARSER* parser) {
 }
 
 static void on_line(PARSER* parser) {
-  emit_line(parser->bcode, B_ON_LINE, line_number(parser));
+  emit_basic_line(parser->bcode, B_ON_LINE, line_number(parser));
 }
 
 static void print_builtin(PARSER* parser, int opcode);
