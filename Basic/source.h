@@ -30,7 +30,7 @@ void delete_source_line(SOURCE*, unsigned index);
 SOURCE* load_source_file(const char* file_name);
 SOURCE* load_source_string(const char* string, const char* name);
 SOURCE* wrap_source_text(const char* text);
-void save_source_file(const SOURCE*, const char* name);
+bool save_source_file(const SOURCE*, const char* name);
 
 const char* source_name(const SOURCE*);
 unsigned source_lines(const SOURCE*);

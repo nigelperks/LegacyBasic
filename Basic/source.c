@@ -182,15 +182,16 @@ SOURCE* load_source_file(const char* name) {
   return src;
 }
 
-void save_source_file(const SOURCE* src, const char* name) {
+bool save_source_file(const SOURCE* src, const char* name) {
   FILE* fp = fopen(name, "w");
   if (fp == NULL) {
-    source_error(src, "cannot create file: %s", name);
-    return;
+    fprintf(stderr, "cannot create file: %s", name);
+    return false;
   }
   for (unsigned i = 0; i < src->used; i++)
     fprintf(fp, "%u %s\n", src->lines[i].num, src->lines[i].text);
   fclose(fp);
+  return true;
 }
 
 static unsigned line_length(const char* s) {

@@ -16,17 +16,14 @@ void delete_vm(VM*);
 void vm_new_program(VM*);
 void vm_delete_source_line(VM*, unsigned num);
 void vm_enter_source_line(VM*, unsigned num, const char* text);
-void vm_take_source(VM*, SOURCE*);
-unsigned vm_source_lines(const VM*);
-unsigned vm_source_linenum(const VM*, unsigned index);
-const char* vm_source_text(const VM*, unsigned index);
-void vm_save_source(VM*, const char* name);
+bool vm_save_source(VM*, const char* name);
+bool vm_load_source(VM*, const char* name);
 
-// Compile and run program.
+const SOURCE* vm_stored_source(vm);
+
+// Compile and run code.
 void run_program(VM*);
-void run_immediate(VM*, const SOURCE*, bool keywords_anywhere);
-void vm_print_bcode(VM*);
-void vm_parse(VM*); // syntax check only
+void run_immediate(VM*, const char* line);
 
 // Maintain an environment of variables and functions.
 void vm_new_environment(VM*);  // go back to builtin names only

@@ -40,7 +40,7 @@ static bool init_array_size(struct array_size * p, unsigned base, unsigned dimen
   return true;
 }
 
-static bool compute_element_offset(const struct array_size * p, unsigned dimensions, unsigned indexes[], unsigned *offset) {
+static bool compute_element_offset(const struct array_size * p, unsigned dimensions, const unsigned indexes[], unsigned *offset) {
   assert(p != NULL);
   assert(offset != NULL);
   if (dimensions != p->dimensions)
@@ -79,7 +79,7 @@ void delete_numeric_array(struct numeric_array * p) {
   efree(p);
 }
 
-bool compute_numeric_element(struct numeric_array * p, unsigned dimensions, unsigned indexes[], double* *addr) {
+bool compute_numeric_element(struct numeric_array * p, unsigned dimensions, const unsigned indexes[], double* *addr) {
   assert(p != NULL);
   assert(addr != NULL);
   unsigned offset;
@@ -108,7 +108,7 @@ void delete_string_array(struct string_array * p) {
   }
 }
 
-bool compute_string_element(struct string_array * p, unsigned dimensions, unsigned indexes[], char* * *addr) {
+bool compute_string_element(struct string_array * p, unsigned dimensions, const unsigned indexes[], char* * *addr) {
   unsigned offset;
   if (compute_element_offset(&p->size, dimensions, indexes, &offset)) {
     *addr = p->val + offset;

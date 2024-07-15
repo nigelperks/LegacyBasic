@@ -139,7 +139,6 @@ static void program_line(VM* vm, char* line) {
 }
 
 static void command(VM*, int cmd, char* line, bool *quit);
-static void immediate_statement(VM*, const char* line);
 
 static void immediate(VM* vm, char* line, bool *quit) {
   assert(line != NULL && !isdigit(*line));
@@ -155,7 +154,7 @@ static void immediate(VM* vm, char* line, bool *quit) {
     }
   }
 
-  immediate_statement(vm, line);
+  run_immediate(vm, line);
 }
 
 static char* get_list_numbers(char* line, unsigned *start, unsigned *end);
@@ -188,11 +187,8 @@ static void command(VM* vm, int cmd, char* line, bool *quit) {
     }
     case CMD_LOAD: {
       const char* str;
-      if ((line = demarcate_string(line, &str)) && check_eol(line)) {
-        SOURCE* source = load_source_file(str);
-        if (source)
-          vm_take_source(vm, source);
-      }
+      if ((line = demarcate_string(line, &str)) && check_eol(line))
+        vm_load_source(vm, str);
       else
         error("Quoted file name expected");
       break;
@@ -253,15 +249,18 @@ static void await_newline(void);
 // Pause after each page.
 static void list(const VM* vm, unsigned start, unsigned end, bool page) {
   assert(vm != NULL);
-  if (vm_source_lines(vm)) {
+  const SOURCE* src = vm_stored_source(vm);
+  if (src && source_lines(src)) {
     trap_interrupt();
     unsigned count = 0;
-    for (unsigned i = 0; i < vm_source_lines(vm) && !interrupted; i++) {
-      const unsigned lineno = vm_source_linenum(vm, i);
+    for (unsigned i = 0; i < source_lines(src) && !interrupted; i++) {
+      const unsigned lineno = source_linenum(src, i);
+      if (lineno > end)
+        break;
       if (lineno >= start && lineno <= end) {
-        printf("%u %s", vm_source_linenum(vm, i), vm_source_text(vm, i));
+        printf("%u %s", source_linenum(src, i), source_text(src, i));
         count++;
-        if (page && count % PAGE == PAGE-1 && i + 1 < vm_source_lines(vm))
+        if (page && count % PAGE == PAGE-1 && i + 1 < source_lines(src))
           await_newline();
         else
           putchar('\n');
@@ -276,14 +275,6 @@ static void await_newline(void) {
   int c;
   while ((c = getchar()) != EOF && c != '\n')
     ;
-}
-
-static void immediate_statement(VM* vm, const char* line) {
-  SOURCE* source = wrap_source_text(line);
-  trap_interrupt();
-  run_immediate(vm, source, /*keywords_anywhere*/ false);
-  untrap_interrupt();
-  delete_source(source);
 }
 
 static void oscli(char* line) {

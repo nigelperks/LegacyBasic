@@ -17,7 +17,8 @@ void emit_source_line(BCODE* bcode, unsigned op, unsigned line) {
 
 void emit_basic_line(BCODE* bcode, unsigned op, unsigned line) {
   BINST* i = bcode_next(bcode, op);
-  i->u.basic_line = line;
+  i->u.basic_line.lineno = line;
+  i->u.basic_line.bcode = -1;
 }
 
 void emit_num(BCODE* bcode, unsigned op, double num) {
@@ -87,7 +88,8 @@ static void test_emit(CuTest* tc) {
   emit_basic_line(bcode, B_GOTO, 1000);
   CuAssertIntEquals(tc, 2, bcode->used);
   CuAssertIntEquals(tc, B_GOTO, bcode->inst[1].op);
-  CuAssertIntEquals(tc, 1000, bcode->inst[1].u.basic_line);
+  CuAssertIntEquals(tc, 1000, bcode->inst[1].u.basic_line.lineno);
+  CuAssertIntEquals(tc, -1, bcode->inst[1].u.basic_line.bcode);
 
   emit_num(bcode, B_PUSH_NUM, 1.23e-13);
   CuAssertIntEquals(tc, 3, bcode->used);

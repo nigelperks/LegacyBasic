@@ -137,7 +137,10 @@ typedef struct {
   unsigned short op;
   union {
     unsigned source_line;
-    unsigned basic_line;
+    struct {
+      unsigned lineno;
+      unsigned bcode;
+    } basic_line;
     double num;
     char* str;
     unsigned name;

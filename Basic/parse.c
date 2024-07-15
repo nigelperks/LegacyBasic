@@ -250,7 +250,7 @@ static void read_item(PARSER* parser) {
   if (type == TYPE_STR)
     emit_param(parser->bcode, B_READ_STR, namei, dim);
   else {
-     assert(type == TYPE_NUM);
+    assert(type == TYPE_NUM);
     emit_param(parser->bcode, B_READ_NUM, namei, dim);
   }
 }

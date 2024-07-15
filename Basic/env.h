@@ -42,3 +42,6 @@ ENV* new_environment_with_builtins(void);
 void delete_environment(ENV*);
 
 void clear_environment(ENV*);
+
+int env_lookup_numvar(const ENV*, unsigned name);
+int env_lookup_strvar(const ENV*, unsigned name);

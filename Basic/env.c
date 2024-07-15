@@ -40,3 +40,21 @@ void clear_environment(ENV* env) {
 
   insert_builtins(&env->paren, env->names);
 }
+
+int env_lookup_numvar(const ENV* env, unsigned name) {
+  for (int i = env->numvars.count - 1; i >= 0; i--) {
+    if (env->numvars.vars[i].name == name)
+      return i;
+  }
+
+  return -1;
+}
+
+int env_lookup_strvar(const ENV* env, unsigned name) {
+  for (int i = env->strvars.count - 1; i >= 0; i--) {
+    if (env->strvars.vars[i].name == name)
+      return i;
+  }
+
+  return -1;
+}

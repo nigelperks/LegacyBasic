@@ -24,7 +24,7 @@ struct numeric_array {
 
 struct numeric_array * new_numeric_array(unsigned base, unsigned dimensions, unsigned max[]);
 void delete_numeric_array(struct numeric_array *);
-bool compute_numeric_element(struct numeric_array *, unsigned dimensions, unsigned indexes[], double* *addr);
+bool compute_numeric_element(struct numeric_array *, unsigned dimensions, const unsigned indexes[], double* *addr);
 
 struct string_array {
   struct array_size size;
@@ -33,4 +33,4 @@ struct string_array {
 
 struct string_array * new_string_array(unsigned base, unsigned dimensions, unsigned max[]);
 void delete_string_array(struct string_array *);
-bool compute_string_element(struct string_array *, unsigned dimensions, unsigned indexes[], char* * *addr);
+bool compute_string_element(struct string_array *, unsigned dimensions, const unsigned indexes[], char* * *addr);

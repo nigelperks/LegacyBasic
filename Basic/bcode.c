@@ -182,7 +182,7 @@ void print_binst(const BCODE* p, unsigned j, const SOURCE* source, const STRINGL
         fprintf(fp, ": %u %s", source_linenum(source, i->u.source_line), source_text(source, i->u.source_line));
       break;
     case BF_BASIC_LINE:
-      fprintf(fp, "%u", i->u.basic_line);
+      fprintf(fp, "%u", i->u.basic_line.lineno);
       break;
     case BF_NUM:
       fprintf(fp, "%g", i->u.num);

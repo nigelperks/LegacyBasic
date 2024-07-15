@@ -91,88 +91,91 @@ static void report_memory(void) {
   printf("free:   %10lu\n", free_count);
 }
 
-static void list_file(const SOURCE*);
-static void list_names(SOURCE*, bool crunched);
+static void list_file(const char* file_name);
+static void list_names(const char* file_name, bool crunched);
 
 static void process_file(const Options* opt) {
   assert(opt != NULL && opt->file_name != NULL);
 
-  SOURCE* source = load_source_file(opt->file_name);
-  if (source == NULL)
-    return;
-
   // NO_MODE, LIST_MODE, LIST_NAMES_MODE, PARSE_MODE, CODE_MODE, RUN_MODE, TEST_MODE
 
   if (opt->mode == LIST_MODE) {
-    list_file(source);
-    delete_source(source);
+    list_file(opt->file_name);
     return;
   }
 
   if (opt->mode == LIST_NAMES_MODE) {
-    list_names(source, opt->keywords_anywhere);
-    delete_source(source);
+    list_names(opt->file_name, opt->keywords_anywhere);
     return;
   }
+
+  if (opt->mode == PARSE_MODE || opt->mode == CODE_MODE) {
+    SOURCE* source = load_source_file(opt->file_name);
+    if (source) {
+      ENV* env = new_environment_with_builtins();
+      BCODE* bcode = parse_source(source, env->names, opt->keywords_anywhere);
+      if (bcode && opt->mode == CODE_MODE)
+        print_bcode(bcode, source, env->names, stdout);
+      delete_bcode(bcode);
+      delete_environment(env);
+      delete_source(source);
+    }
+    return;
+  }
+
+  assert(opt->mode == RUN_MODE || opt->mode == NO_MODE);
 
   VM* vm = new_vm(opt->keywords_anywhere, opt->trace_basic, opt->trace_for, opt->trace_log);
-  vm_take_source(vm, source);
 
-  if (opt->mode == PARSE_MODE) {
-    vm_parse(vm);
-    delete_vm(vm);
-    return;
-  }
-
-  if (opt->mode == CODE_MODE) {
-    vm_print_bcode(vm);
-    delete_vm(vm);
-    return;
-  }
-
-  assert(opt->mode == NO_MODE || opt->mode == RUN_MODE);
-
+  if (vm_load_source(vm, opt->file_name)) {
 #if HAS_TIMER
-  TIMER timer;
-  start_timer(&timer);
+    TIMER timer;
+    start_timer(&timer);
 #endif
-
-  run_program(vm);
-
+    run_program(vm);
 #if HAS_TIMER
-  stop_timer(&timer);
-  if (opt->report_time)
-    printf("Microseconds elapsed: %lld\n", elapsed_usec(&timer));
+    stop_timer(&timer);
+    if (opt->report_time)
+      printf("Microseconds elapsed: %lld\n", elapsed_usec(&timer));
 #endif
+  }
 
   delete_vm(vm);
 }
 
-static void list_file(const SOURCE* source) {
-  for (unsigned i = 0; i < source_lines(source); i++)
-    printf("%5u %s\n", source_linenum(source, i), source_text(source, i));
+static void list_file(const char* file_name) {
+  SOURCE* source = load_source_file(file_name);
+  if (source) {
+    for (unsigned i = 0; i < source_lines(source); i++)
+      printf("%5u %s\n", source_linenum(source, i), source_text(source, i));
+    delete_source(source);
+  }
 }
 
 static void print_name(const char* name);
 
-static void list_names(SOURCE* source, bool crunched) {
-  LEX* lex = new_lex(source_name(source), crunched);
-  UNIQUE_STRINGS* names = new_unique_strings();
+static void list_names(const char* file_name, bool crunched) {
+  SOURCE* source = load_source_file(file_name);
+  if (source) {
+    LEX* lex = new_lex(file_name, crunched);
+    UNIQUE_STRINGS* names = new_unique_strings();
 
-  for (unsigned i = 0; i < source_lines(source); i++) {
-    lex_line(lex, source_linenum(source, i), source_text(source, i));
-    int t = lex_token(lex);
-    while (t != '\n' && t != TOK_REM) {
-      if (t == TOK_ID)
-        insert_unique_string(names, lex_word(lex));
-      t = lex_next(lex);
+    for (unsigned i = 0; i < source_lines(source); i++) {
+      lex_line(lex, source_linenum(source, i), source_text(source, i));
+      int t = lex_token(lex);
+      while (t != '\n' && t != TOK_REM) {
+        if (t == TOK_ID)
+          insert_unique_string(names, lex_word(lex));
+        t = lex_next(lex);
+      }
     }
+
+    traverse_unique_strings(names, print_name);
+
+    delete_unique_strings(names);
+    delete_lex(lex);
+    delete_source(source);
   }
-
-  traverse_unique_strings(names, print_name);
-
-  delete_unique_strings(names);
-  delete_lex(lex);
 }
 
 static void print_name(const char* name) {
@@ -198,6 +201,7 @@ CuSuite* bcode_test_suite(void);
 CuSuite* emit_test_suite(void);
 CuSuite* arrays_test_suite(void);
 CuSuite* paren_test_suite(void);
+CuSuite* run_test_suite(void);
 
 static int unit_tests(void) {
   CuString* output = CuStringNew();
@@ -213,6 +217,7 @@ static int unit_tests(void) {
   CuSuiteAddSuite(suite, emit_test_suite());
   CuSuiteAddSuite(suite, arrays_test_suite());
   CuSuiteAddSuite(suite, paren_test_suite());
+  CuSuiteAddSuite(suite, run_test_suite());
 
   CuSuiteRun(suite);
   int failed = suite->failCount;
