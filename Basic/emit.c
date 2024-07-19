@@ -36,14 +36,14 @@ void emit_str_ptr(BCODE* bcode, unsigned op, char* str) {
   i->u.str = str;
 }
 
-void emit_var(BCODE* bcode, unsigned op, unsigned name) {
+void emit_var(BCODE* bcode, unsigned op, unsigned symbol_id) {
   BINST* i = bcode_next(bcode, op);
-  i->u.name = name;
+  i->u.symbol_id = symbol_id;
 }
 
-unsigned emit_param(BCODE* bcode, unsigned op, unsigned name, unsigned params) {
+unsigned emit_param(BCODE* bcode, unsigned op, unsigned symbol_id, unsigned params) {
   BINST* i = bcode_next(bcode, op);
-  i->u.param.name = name;
+  i->u.param.symbol_id = symbol_id;
   i->u.param.params = params;
   return (unsigned)(i - bcode->inst);
 }
@@ -112,12 +112,12 @@ static void test_emit(CuTest* tc) {
   emit_var(bcode, B_PARAM, 13);
   CuAssertIntEquals(tc, 6, bcode->used);
   CuAssertIntEquals(tc, B_PARAM, bcode->inst[5].op);
-  CuAssertIntEquals(tc, 13, bcode->inst[5].u.name);
+  CuAssertIntEquals(tc, 13, bcode->inst[5].u.symbol_id);
 
   emit_param(bcode, B_DIM_NUM, 17, 3);
   CuAssertIntEquals(tc, 7, bcode->used);
   CuAssertIntEquals(tc, B_DIM_NUM, bcode->inst[6].op);
-  CuAssertIntEquals(tc, 17, bcode->inst[6].u.param.name);
+  CuAssertIntEquals(tc, 17, bcode->inst[6].u.param.symbol_id);
   CuAssertIntEquals(tc, 3, bcode->inst[6].u.param.params);
 
   unsigned i = emit_count(bcode, B_ON_GOTO, 5);

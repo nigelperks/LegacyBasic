@@ -1,0 +1,2 @@
+Runtime error: nested user-defined function calls are not allowed
+30 DEF G(X)=F(X)*F(X)

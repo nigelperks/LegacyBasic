@@ -6,6 +6,8 @@
 #include <stdbool.h>
 #include "source.h"
 
+#define MAX_WORD (128)
+
 typedef struct {
   const char* name;
   unsigned lineno;
@@ -15,7 +17,7 @@ typedef struct {
   int token;
   double num;
   bool recognise_keyword_prefixes;
-  char word[128];
+  char word[MAX_WORD];
 } LEX;
 
 LEX* new_lex(const char* name, bool recognise_keyword_prefixes);

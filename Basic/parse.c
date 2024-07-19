@@ -20,19 +20,20 @@
 typedef struct {
   LEX* lex;
   BCODE* bcode;
-  STRINGLIST* names;
+  SYMTAB* st;
   unsigned if_then;
   jmp_buf errjmp;
 } PARSER;
 
 static void parse_line(PARSER*, unsigned line_index, unsigned lineno, const char* text);
 
-BCODE* parse_source(const SOURCE* source, STRINGLIST* names, bool recognise_keyword_prefixes) {
-  assert(source != NULL && names != NULL);
+BCODE* parse_source(const SOURCE* source, SYMTAB* st, bool recognise_keyword_prefixes) {
+  assert(source != NULL);
+  assert(st != NULL);
   PARSER parser;
   parser.lex = new_lex(source_name(source), recognise_keyword_prefixes);
   parser.bcode = new_bcode();
-  parser.names = names;
+  parser.st = st;
   parser.if_then = 0;
   if (setjmp(parser.errjmp) == 0) {
     for (unsigned i = 0; i < source_lines(source); i++)
@@ -43,6 +44,7 @@ BCODE* parse_source(const SOURCE* source, STRINGLIST* names, bool recognise_keyw
     parser.bcode = NULL;
   }
   delete_lex(parser.lex);
+  sym_make_unknown_array(st);
   return parser.bcode;
 }
 
@@ -54,27 +56,16 @@ static void print_line(LEX* lex) {
   fputs("^\n", stderr);
 }
 
-static void parse_error_message(LEX* lex, const char* fmt, ...) {
-  print_line(lex);
-
-  fputs("Syntax error: ", stderr);
-  va_list ap;
-  va_start(ap, fmt);
-  vfprintf(stderr, fmt, ap);
-  va_end(ap);
-  fputs(": ", stderr);
-  print_lex_token(lex, stderr);
-  putc('\n', stderr);
-}
-
+// Print error line, formatted error message, and current token, and stop parsing.
 static void parse_error(PARSER* parser, const char* fmt, ...) {
   print_line(parser->lex);
 
-  fputs("Syntax error: ", stderr);
+  fputs("Error: ", stderr);
   va_list ap;
   va_start(ap, fmt);
   vfprintf(stderr, fmt, ap);
   va_end(ap);
+
   fputs(": ", stderr);
   print_lex_token(parser->lex, stderr);
   putc('\n', stderr);
@@ -82,10 +73,11 @@ static void parse_error(PARSER* parser, const char* fmt, ...) {
   longjmp(parser->errjmp, 1);
 }
 
+// Print error line and formatted error message, and stop parsing.
 static void parse_error_no_token(PARSER* parser, const char* fmt, ...) {
   print_line(parser->lex);
 
-  fputs("Syntax error: ", stderr);
+  fputs("Error: ", stderr);
   va_list ap;
   va_start(ap, fmt);
   vfprintf(stderr, fmt, ap);
@@ -95,23 +87,12 @@ static void parse_error_no_token(PARSER* parser, const char* fmt, ...) {
   longjmp(parser->errjmp, 1);
 }
 
-static void parse_error_token(PARSER* parser, const char* msg, int token) {
-  print_line(parser->lex);
-
-  fprintf(stderr, "Syntax error: %s: ", msg);
-  print_token(token, stderr);
-  putc('\n', stderr);
-
-  longjmp(parser->errjmp, 1);
-}
-
 static void match(PARSER* parser, int token) {
   if (lex_token(parser->lex) != token) {
-    parse_error_message(parser->lex, "unexpected token");
-    fputs("Expected: ", stderr);
+    fputs("Error: expected: ", stderr);
     print_token(token, stderr);
     putc('\n', stderr);
-    longjmp(parser->errjmp, 1);
+    parse_error(parser, "unexpected token");
   }
   lex_next(parser->lex);
 }
@@ -209,7 +190,10 @@ static void numeric_expression(PARSER*);
 static void string_expression(PARSER*);
 
 static unsigned line_number(PARSER*);
-static int identifier(PARSER*, unsigned *name, unsigned *parameters);
+
+static SYMBOL* identifier(PARSER*, unsigned *parameters, int paren_kind);
+static SYMBOL* simple_variable(PARSER*);
+static SYMBOL* numeric_simple_variable(PARSER*);
 
 static void clear_statement(PARSER* parser) {
   match(parser, TOK_CLEAR);
@@ -234,6 +218,7 @@ static void data_statement(PARSER* parser) {
 
 static void read_item(PARSER*);
 
+// READ a, a(i), x$, ...
 static void read_statement(PARSER* parser) {
   match(parser, TOK_READ);
 
@@ -244,17 +229,19 @@ static void read_statement(PARSER* parser) {
   }
 }
 
+// Parse a simple or subscripted variable in a READ statement
 static void read_item(PARSER* parser) {
-  unsigned namei, dim;
-  int type = identifier(parser, &namei, &dim);
-  if (type == TYPE_STR)
-    emit_param(parser->bcode, B_READ_STR, namei, dim);
+  unsigned dim;
+  SYMBOL* sym = identifier(parser, &dim, SYM_ARRAY);
+  if (sym->type == TYPE_STR)
+    emit_param(parser->bcode, B_READ_STR, sym->id, dim);
   else {
-    assert(type == TYPE_NUM);
-    emit_param(parser->bcode, B_READ_NUM, namei, dim);
+    assert(sym->type == TYPE_NUM);
+    emit_param(parser->bcode, B_READ_NUM, sym->id, dim);
   }
 }
 
+// RESTORE [line]
 static void restore_statement(PARSER* parser) {
   match(parser, TOK_RESTORE);
   if (lex_token(parser->lex) == TOK_NUM)
@@ -263,22 +250,32 @@ static void restore_statement(PARSER* parser) {
     emit(parser->bcode, B_RESTORE);
 }
 
-static void parameter(PARSER*);
+static void def_parameter(PARSER*);
 
+// DEF name(x)=...
 static void def_statement(PARSER* parser) {
   match(parser, TOK_DEF);
 
   if (lex_token(parser->lex) != TOK_ID)
     parse_error(parser, "User-defined function name expected");
 
-  assert(parser->names != NULL);
-  unsigned name = name_entry(parser->names, lex_word(parser->lex));
+  const char* name = lex_word(parser->lex);
   int type = string_name(lex_word(parser->lex)) ? TYPE_STR : TYPE_NUM;
+  SYMBOL* sym = sym_lookup(parser->st, name, /*paren*/ true);
+  if (sym) {
+    if (sym->kind == SYM_UNKNOWN)
+      sym->kind = SYM_DEF;
+    else if (sym->kind != SYM_DEF)
+      parse_error(parser, "name already used for %s", symbol_kind(sym->kind));
+  }
+  else
+    sym = sym_insert(parser->st, name, SYM_DEF, type);
+
   match(parser, TOK_ID);
-  emit_param(parser->bcode, B_DEF, name, 1);
+  emit_param(parser->bcode, B_DEF, sym->id, 1);
 
   match(parser, '(');
-  parameter(parser);
+  def_parameter(parser);
   match(parser, ')');
 
   match(parser, '=');
@@ -289,12 +286,10 @@ static void def_statement(PARSER* parser) {
   emit(parser->bcode, B_END_DEF);
 }
 
-static void parameter(PARSER* parser) {
-  unsigned name, params = 0;
-  int type = identifier(parser, &name, &params);
-  if (type != TYPE_NUM || params != 0)
-    parse_error(parser, "only simple numeric parameters are allowed");
-  emit_var(parser->bcode, B_PARAM, name);
+static void def_parameter(PARSER* parser) {
+  unsigned params = 0;
+  SYMBOL* sym = numeric_simple_variable(parser);
+  emit_var(parser->bcode, B_PARAM, sym->id);
 }
 
 static void dim_array(PARSER*);
@@ -309,20 +304,17 @@ static void dim_statement(PARSER* parser) {
   }
 }
 
+// DIM a(3), b$(4,5)
 static void dim_array(PARSER* parser) {
-  unsigned namei;
   unsigned dimensions = 0;
-  int type = identifier(parser, &namei, &dimensions);
-  assert(parser->names != NULL);
-  const char* name = stringlist_item(parser->names, namei);
-  if (dimensions == 0)
-    parse_error(parser, "Subscripted dimensions were expected: %s", name);
-  if (type == TYPE_STR)
-    emit_param(parser->bcode, B_DIM_STR, namei, dimensions);
-  else {
-    assert(type == TYPE_NUM);
-    emit_param(parser->bcode, B_DIM_NUM, namei, dimensions);
-  }
+  SYMBOL* sym = identifier(parser, &dimensions, SYM_ARRAY);
+  if (sym->kind != SYM_ARRAY)
+    parse_error_no_token(parser, "array name and dimensions expected: %s", sym->name);
+
+  if (sym->type == TYPE_STR)
+    emit_param(parser->bcode, B_DIM_STR, sym->id, dimensions);
+  else
+    emit_param(parser->bcode, B_DIM_NUM, sym->id, dimensions);
 }
 
 static void end_statement(PARSER* parser) {
@@ -330,12 +322,10 @@ static void end_statement(PARSER* parser) {
   emit(parser->bcode, B_END);
 }
 
-static unsigned for_variable(PARSER*);
-
 static void for_statement(PARSER* parser) {
   match(parser, TOK_FOR);
 
-  unsigned namei = for_variable(parser);
+  SYMBOL* sym = numeric_simple_variable(parser);
 
   match(parser, '=');
   numeric_expression(parser);
@@ -348,33 +338,23 @@ static void for_statement(PARSER* parser) {
   else
     emit_num(parser->bcode, B_PUSH_NUM, 1);
 
-  emit_var(parser->bcode, B_FOR, namei);
+  emit_var(parser->bcode, B_FOR, sym->id);
 }
 
 static void next_statement(PARSER* parser) {
   match(parser, TOK_NEXT);
 
   if (lex_token(parser->lex) == TOK_ID) {
-    emit_var(parser->bcode, B_NEXT_VAR, for_variable(parser));
+    SYMBOL* sym = numeric_simple_variable(parser);
+    emit_var(parser->bcode, B_NEXT_VAR, sym->id);
     while (lex_token(parser->lex) == ',') {
       lex_next(parser->lex);
-      emit_var(parser->bcode, B_NEXT_VAR, for_variable(parser));
+      sym = numeric_simple_variable(parser);
+      emit_var(parser->bcode, B_NEXT_VAR, sym->id);
     }
   }
   else
     emit(parser->bcode, B_NEXT_IMP);
-}
-
-static unsigned for_variable(PARSER* parser) {
-  unsigned namei, dim;
-  int type = identifier(parser, &namei, &dim);
-  assert(parser->names != NULL);
-  const char* name = stringlist_item(parser->names, namei);
-  if (type != TYPE_NUM)
-    parse_error_no_token(parser, "FOR/NEXT variable must be numeric: %s", name);
-  if (dim)
-    parse_error_no_token(parser, "FOR/NEXT variable cannot be an array element: %s", name);
-  return namei;
 }
 
 static void gosub_statement(PARSER* parser) {
@@ -444,6 +424,7 @@ static void input_statement(PARSER* parser) {
   emit(parser->bcode, B_INPUT_END);
 }
 
+/* Parse optional input prompt. Emit code to read input buffer. */
 static void input_buffer(PARSER* parser) {
   char* prompt = NULL;
   if (lex_token(parser->lex) == TOK_STR) {
@@ -457,12 +438,10 @@ static void input_buffer(PARSER* parser) {
 }
 
 static void input_item(PARSER* parser) {
-  unsigned name;
   unsigned dimensions = 0;
-  int type = identifier(parser, &name, &dimensions);
-  assert(type == TYPE_NUM || type == TYPE_STR);
-
-  emit_param(parser->bcode, type == TYPE_NUM ? B_INPUT_NUM : B_INPUT_STR, name, dimensions);
+  SYMBOL* sym = identifier(parser, &dimensions, SYM_ARRAY);
+  int op = sym->type == TYPE_NUM ? B_INPUT_NUM : B_INPUT_STR;
+  emit_param(parser->bcode, op, sym->id, dimensions);
 }
 
 static void line_input_statement(PARSER* parser) {
@@ -471,34 +450,29 @@ static void line_input_statement(PARSER* parser) {
 
   input_buffer(parser);
 
-  unsigned name, dimensions = 0;
-  int type = identifier(parser, &name, &dimensions);
-  if (type != TYPE_STR)
-    parse_error(parser, "string variable expected");
-
-  emit_param(parser->bcode, B_INPUT_LINE, name, dimensions);
+  unsigned dimensions;
+  SYMBOL* sym = identifier(parser, &dimensions, SYM_ARRAY);
+  if (sym->type != TYPE_STR)
+    parse_error_no_token(parser, "string variable or array element expected: %s", sym->name);
+  emit_param(parser->bcode, B_INPUT_LINE, sym->id, dimensions);
 }
-
-static void emit_set(PARSER*, int type, unsigned name, unsigned dimensions);
 
 static void assignment(PARSER* parser) {
-  unsigned name;
   unsigned dimensions = 0;
-  int type = identifier(parser, &name, &dimensions);
-  assert(type == TYPE_NUM || type == TYPE_STR);
+  SYMBOL* sym = identifier(parser, &dimensions, SYM_ARRAY);
   match(parser, '=');
   int e = expression(parser);
-  assert(e == TYPE_NUM || e == TYPE_STR);
-  if (e != type)
+  if (e != sym->type)
     parse_error(parser, "type mismatch in assignment");
-  emit_set(parser, type, name, dimensions);
-}
 
-static void emit_set(PARSER* parser, int type, unsigned name, unsigned dimensions) {
-  if (dimensions)
-    emit_param(parser->bcode, type == TYPE_STR ? B_SET_ARRAY_STR : B_SET_ARRAY_NUM, name, dimensions);
-  else
-    emit_var(parser->bcode, type == TYPE_STR ? B_SET_SIMPLE_STR : B_SET_SIMPLE_NUM, name);
+  if (dimensions) {
+    int op = sym->type == TYPE_STR ? B_SET_ARRAY_STR : B_SET_ARRAY_NUM;
+    emit_param(parser->bcode, op, sym->id, dimensions);
+  }
+  else {
+    int op = sym->type == TYPE_STR ? B_SET_SIMPLE_STR : B_SET_SIMPLE_NUM;
+    emit_var(parser->bcode, op, sym->id);
+  }
 }
 
 static void let_statement(PARSER* parser) {
@@ -733,7 +707,7 @@ static int relational_expression(PARSER* parser) {
         case TOK_NE: emit(parser->bcode, B_NE_STR); break;
         case TOK_LE: emit(parser->bcode, B_LE_STR); break;
         case TOK_GE: emit(parser->bcode, B_GE_STR); break;
-        default: parse_error_token(parser, "relational operator unsupported", op); break;
+        default: assert(0 && "relop not handled"); break;
       }
       return TYPE_NUM;
     }
@@ -745,7 +719,7 @@ static int relational_expression(PARSER* parser) {
       case TOK_NE: emit(parser->bcode, B_NE_NUM); break;
       case TOK_LE: emit(parser->bcode, B_LE_NUM); break;
       case TOK_GE: emit(parser->bcode, B_GE_NUM); break;
-      default: parse_error_token(parser, "relational operator unsupported", op); break;
+      default: assert(0 && "relop not handled"); break;
     }
     return TYPE_NUM;
   }
@@ -882,13 +856,17 @@ static int primary_expression(PARSER* parser) {
       emit(parser->bcode, b->opcode);
       return b->type;
     }
-    unsigned name, params = 0;
-    int type = identifier(parser, &name, &params);
-    if (params)
-      emit_param(parser->bcode, type == TYPE_STR ? B_GET_PAREN_STR : B_GET_PAREN_NUM, name, params);
-    else
-      emit_var(parser->bcode, type == TYPE_STR ? B_GET_SIMPLE_STR : B_GET_SIMPLE_NUM, name);
-    return type;
+    unsigned params = 0;
+    SYMBOL* sym = identifier(parser, &params, SYM_UNKNOWN);
+    if (params) {
+      int op = sym->type == TYPE_STR ? B_GET_PAREN_STR : B_GET_PAREN_NUM;
+      emit_param(parser->bcode, op, sym->id, params);
+    }
+    else {
+      int op = sym->type == TYPE_STR ? B_GET_SIMPLE_STR : B_GET_SIMPLE_NUM;
+      emit_var(parser->bcode, op, sym->id);
+    }
+    return sym->type;
   }
   if (lex_token(parser->lex) == '(') {
     lex_next(parser->lex);
@@ -909,31 +887,59 @@ static void builtin_arg(PARSER* parser, int type) {
   }
 }
 
-static int identifier(PARSER* parser, unsigned *name, unsigned *parameters) {
-  int type = TYPE_ERR;
-
-  if (lex_token(parser->lex) == TOK_ID) {
-    assert(parser->names != NULL);
-    *name = name_entry(parser->names, lex_word(parser->lex));
-    type = string_name(lex_word(parser->lex)) ? TYPE_STR : TYPE_NUM;
-  }
+// Parse an identifier rvalue or lvalue: a, a(i,j).
+// If paren_kind is not UNKNOWN, an existing paren symbol must be of that kind.
+// A new paren symbol is inserted with that kind.
+static SYMBOL* identifier(PARSER* parser, unsigned *parameters, int paren_kind) {
+  char name[MAX_WORD];
+  if (lex_token(parser->lex) == TOK_ID)
+    strcpy(name, lex_word(parser->lex));
   match(parser, TOK_ID);
+
+  int type = string_name(name) ? TYPE_STR : TYPE_NUM;
 
   *parameters = 0;
   if (lex_token(parser->lex) == '(') {
-    lex_next(parser->lex);
-    numeric_expression(parser);
-    ++*parameters;
-    while (lex_token(parser->lex) == ',') {
+    do {
       lex_next(parser->lex);
       numeric_expression(parser);
       ++*parameters;
-    }
+    } while (lex_token(parser->lex) == ',');
     match(parser, ')');
   }
 
-  assert(type == TYPE_NUM || type == TYPE_STR);
-  return type;
+  SYMBOL* sym = sym_lookup(parser->st, name, /*paren*/ *parameters);
+  if (sym) {
+    if (*parameters) {
+      if (sym->kind == SYM_UNKNOWN)
+        sym->kind = paren_kind;
+      else {
+        if (paren_kind != SYM_UNKNOWN && sym->kind != paren_kind)
+          parse_error_no_token(parser, "expected %s, found %s: %s", symbol_kind(paren_kind), symbol_kind(sym->kind), name);
+      }
+    }
+  }
+  else {
+    int kind = *parameters ? paren_kind : SYM_VARIABLE;
+    sym = sym_insert(parser->st, name, kind, type);
+  }
+
+  return sym;
+}
+
+static SYMBOL* simple_variable(PARSER* parser) {
+  unsigned params;
+  SYMBOL* sym = identifier(parser, &params, SYM_UNKNOWN);
+  if (sym->kind != SYM_VARIABLE)
+    parse_error_no_token(parser, "simple variable expected: %s", sym->name);
+  return sym;
+}
+
+static SYMBOL* numeric_simple_variable(PARSER* parser) {
+  SYMBOL* sym = simple_variable(parser);
+  if (sym->type != TYPE_NUM)
+    parse_error_no_token(parser, "numeric variable expected: %s", sym->name);
+  return sym;
 }
 
 static unsigned line_number(PARSER* parser) {

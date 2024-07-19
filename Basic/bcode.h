@@ -8,7 +8,6 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include "source.h"
-#include "stringlist.h"
 
 enum {
   // placeholder
@@ -133,6 +132,9 @@ enum bcode_format {
   BF_COUNT,
 };
 
+const char* bcode_name(int opcode);
+int bcode_format(int opcode);
+
 typedef struct {
   unsigned short op;
   union {
@@ -143,9 +145,9 @@ typedef struct {
     } basic_line;
     double num;
     char* str;
-    unsigned name;
+    unsigned symbol_id;
     struct {
-      unsigned name;
+      unsigned symbol_id;
       unsigned char params;
     } param;
     unsigned count;
@@ -156,15 +158,13 @@ typedef struct {
   BINST* inst;
   unsigned allocated;
   unsigned used;
+  bool has_data;
 } BCODE;
 
 BCODE* new_bcode(void);
 void delete_bcode(BCODE*);
 const BINST* bcode_latest(const BCODE*);
 BINST* bcode_next(BCODE*, unsigned op);
-
-void print_bcode(const BCODE*, const SOURCE*, const STRINGLIST* names, FILE*);
-void print_binst(const BCODE*, unsigned index, const SOURCE*, const STRINGLIST* names, FILE*);
 
 BCODE* bcode_copy_def(const BCODE*, unsigned start);
 

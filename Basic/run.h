@@ -5,7 +5,6 @@
 
 #include <stdbool.h>
 #include "bcode.h"
-#include "env.h"
 
 typedef struct vm VM;
 
@@ -26,5 +25,5 @@ void run_program(VM*);
 void run_immediate(VM*, const char* line);
 
 // Maintain an environment of variables and functions.
-void vm_new_environment(VM*);  // go back to builtin names only
-void vm_clear_environment(VM*);  // clear values but keep names list so code remains valid
+void vm_clear_names(VM*);  // go back to builtin names only
+void vm_clear_values(VM*);  // clear values but keep names list so code remains valid

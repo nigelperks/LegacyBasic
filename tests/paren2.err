@@ -1,0 +1,3 @@
+30 DIM F(4)
+           ^
+Error: expected array, found user-defined function: F

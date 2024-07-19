@@ -68,6 +68,10 @@ BYE
 ^^^
 Return to the operating system.
 
+HELP
+^^^^
+List these immediate commands with a brief explanation.
+
 LIST
 ^^^^
 Lists the current source file.

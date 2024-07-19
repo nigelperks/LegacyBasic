@@ -1,0 +1,3 @@
+20 LINE INPUT A
+               ^
+Error: string variable or array element expected: A

@@ -8,10 +8,12 @@
 #include "bcode.h"
 
 struct def {
-  unsigned params;
-  unsigned source_line;  // 0 if immediate statement
-  BCODE* code;
+  BCODE* bcode;
+  SOURCE* source; // reference to stored program source if applicable
+  unsigned source_line;
 };
 
-struct def * new_def(void);
+// takes ownership of the BCODE
+struct def * new_def(BCODE*, SOURCE*, unsigned source_line);
+
 void delete_def(struct def *);

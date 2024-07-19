@@ -1,0 +1,3 @@
+20 DIM A
+        ^
+Error: array name and dimensions expected: A

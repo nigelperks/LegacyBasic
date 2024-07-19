@@ -1,7 +1,7 @@
 // Legacy BASIC
 // Basic interpreter for running 70s/80s microcomputer Basic games.
 // Copyright (c) 2022-24 Nigel Perks
-// Main function of executable for user to start Legacy Basic: 
+// Main function of executable for user to start Legacy Basic:
 // use the interactive monitor or run a specified Basic program.
 
 #include <stdio.h>
@@ -21,6 +21,8 @@
 #include "os.h"
 #include "utils.h"
 #include "stringuniq.h"
+#include "symbol.h"
+#include "init.h"
 
 // These attributes are declared in C source instead of being generated
 // because it better supports both CMake and development builds.
@@ -72,7 +74,7 @@ int main(int argc, char* argv[]) {
       fatal("invalid option for interactive mode\n");
     interact(opt.keywords_anywhere, opt.trace_basic, opt.trace_for, opt.quiet);
   }
-  else 
+  else
     process_file(&opt);
 
   if (opt.report_memory)
@@ -112,12 +114,17 @@ static void process_file(const Options* opt) {
   if (opt->mode == PARSE_MODE || opt->mode == CODE_MODE) {
     SOURCE* source = load_source_file(opt->file_name);
     if (source) {
-      ENV* env = new_environment_with_builtins();
-      BCODE* bcode = parse_source(source, env->names, opt->keywords_anywhere);
-      if (bcode && opt->mode == CODE_MODE)
-        print_bcode(bcode, source, env->names, stdout);
+      SYMTAB* st = new_symbol_table();
+      init_builtins(st);
+      BCODE* bcode = parse_source(source, st, opt->keywords_anywhere);
+      if (bcode == NULL)
+        exit(EXIT_FAILURE);
+      if (opt->mode == CODE_MODE) {
+        for (unsigned i = 0; i < bcode->used; i++)
+          print_binst(bcode->inst + i, i, source, st, stdout);
+      }
       delete_bcode(bcode);
-      delete_environment(env);
+      delete_symbol_table(st);
       delete_source(source);
     }
     return;
@@ -200,7 +207,7 @@ CuSuite* lexer_test_suite(void);
 CuSuite* bcode_test_suite(void);
 CuSuite* emit_test_suite(void);
 CuSuite* arrays_test_suite(void);
-CuSuite* paren_test_suite(void);
+CuSuite* symbol_test_suite(void);
 CuSuite* run_test_suite(void);
 
 static int unit_tests(void) {
@@ -216,7 +223,7 @@ static int unit_tests(void) {
   CuSuiteAddSuite(suite, bcode_test_suite());
   CuSuiteAddSuite(suite, emit_test_suite());
   CuSuiteAddSuite(suite, arrays_test_suite());
-  CuSuiteAddSuite(suite, paren_test_suite());
+  CuSuiteAddSuite(suite, symbol_test_suite());
   CuSuiteAddSuite(suite, run_test_suite());
 
   CuSuiteRun(suite);

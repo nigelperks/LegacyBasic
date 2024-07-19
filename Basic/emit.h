@@ -11,8 +11,8 @@ void emit_basic_line(BCODE*, unsigned op, unsigned line);
 void emit_num(BCODE*, unsigned op, double num);
 void emit_str(BCODE*, unsigned op, const char* str);
 void emit_str_ptr(BCODE*, unsigned op, char* str);
-void emit_var(BCODE*, unsigned op, unsigned name);
-unsigned emit_param(BCODE*, unsigned op, unsigned name, unsigned parameters);
+void emit_var(BCODE*, unsigned op, unsigned symbol_id);
+unsigned emit_param(BCODE*, unsigned op, unsigned symbol_id, unsigned parameters);
 unsigned emit_count(BCODE*, unsigned op, unsigned count);
 
 void patch_opcode(BCODE*, unsigned index, unsigned op);

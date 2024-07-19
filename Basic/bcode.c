@@ -122,11 +122,27 @@ static const struct {
   { "VAL", BF_IMPLICIT },
 };
 
+static void check(unsigned opcode) {
+  if (opcode >= sizeof ops / sizeof ops[0])
+    fatal("internal error: opcode out of range\n");
+}
+
+const char* bcode_name(int opcode) {
+  check(opcode);
+  return ops[opcode].name;
+}
+
+int bcode_format(int opcode) {
+  check(opcode);
+  return ops[opcode].format;
+}
+
 BCODE* new_bcode(void) {
   BCODE* p = emalloc(sizeof *p);
   p->inst = NULL;
   p->allocated = 0;
   p->used = 0;
+  p->has_data = false;
   return p;
 }
 
@@ -156,56 +172,9 @@ BINST* bcode_next(BCODE* p, unsigned op) {
   assert(p->used < p->allocated);
   BINST* i = &p->inst[p->used++];
   i->op = op;
+  if (op == B_DATA)
+    p->has_data = true;
   return i;
-}
-
-void print_bcode(const BCODE* p, const SOURCE* source, const STRINGLIST* names, FILE* fp) {
-  assert(p != NULL);
-  assert(fp != NULL);
-  for (unsigned i = 0; i < p->used; i++)
-    print_binst(p, i, source, names, fp);
-}
-
-void print_binst(const BCODE* p, unsigned j, const SOURCE* source, const STRINGLIST* names, FILE* fp) {
-  assert(p != NULL);
-  assert(j < p->used);
-  assert(fp != NULL);
-  const BINST* i = p->inst + j;
-  assert(i->op < sizeof ops / sizeof ops[0]);
-  fprintf(fp, "%5u %s ", j, ops[i->op].name);
-  switch (ops[i->op].format) {
-    case BF_IMPLICIT:
-      break;
-    case BF_SOURCE_LINE:
-      fprintf(fp, "%u", i->u.source_line);
-      if (source)
-        fprintf(fp, ": %u %s", source_linenum(source, i->u.source_line), source_text(source, i->u.source_line));
-      break;
-    case BF_BASIC_LINE:
-      fprintf(fp, "%u", i->u.basic_line.lineno);
-      break;
-    case BF_NUM:
-      fprintf(fp, "%g", i->u.num);
-      break;
-    case BF_STR:
-      if (i->u.str)
-        fprintf(fp, "\"%s\"", i->u.str);
-      else
-        fputs("null", fp);
-      break;
-    case BF_VAR:
-      fputs(stringlist_item(names, i->u.name), fp);
-      break;
-    case BF_PARAM:
-      fprintf(fp, "%s, %u", stringlist_item(names, i->u.param.name), i->u.param.params);
-      break;
-    case BF_COUNT:
-      fprintf(fp, "%u", i->u.count);
-      break;
-    default:
-      fatal("internal error: print_binst: unknown instruction format: %u\n", (unsigned) ops[i->op].format);
-  }
-  putc('\n', fp);
 }
 
 static unsigned def_end(const BCODE* code, unsigned pc) {
@@ -315,10 +284,8 @@ bool bcode_find_indexed_basic_line(const BCODE_INDEX* idx, unsigned basic_line, 
 static void test_bcode(CuTest* tc) {
   static const char CODE[] = "10 PRINT\n20 PRINT\n";
   SOURCE* const src = load_source_string(CODE, "test");
-  STRINGLIST* names = new_stringlist();
   BCODE* p;
   BINST* i;
-  unsigned j;
 
   p = new_bcode();
   CuAssertPtrNotNull(tc, p);
@@ -333,29 +300,12 @@ static void test_bcode(CuTest* tc) {
   CuAssertIntEquals(tc, 1, p->used);
   CuAssertIntEquals(tc, B_ADD, p->inst[0].op);
 
-  j = name_entry(names, "Cab$");
-  CuAssertIntEquals(tc, 0, j);
-  CuAssertIntEquals(tc, 1, stringlist_count(names));
-  CuAssertStrEquals(tc, "Cab$", stringlist_item(names, 0));
-
-  j = name_entry(names, "Lurg");
-  CuAssertIntEquals(tc, 1, j);
-  CuAssertIntEquals(tc, 2, stringlist_count(names));
-  CuAssertStrEquals(tc, "Lurg", stringlist_item(names, 1));
-
-  j = name_entry(names, "CAB$");
-  CuAssertIntEquals(tc, 0, j);
-
-  j = name_entry(names, "cab$");
-  CuAssertIntEquals(tc, 0, j);
-
   i = bcode_next(p, B_SOURCE_LINE);
   CuAssertPtrNotNull(tc, i);
   CuAssertIntEquals(tc, 2, p->used);
 
   delete_bcode(p);
   delete_source(src);
-  delete_stringlist(names);
 }
 
 static void test_def_end(CuTest* tc) {

@@ -7,7 +7,7 @@
 #include "arrays.h"
 #include "utils.h"
 
-static bool compute_total_elements(unsigned base, unsigned dimensions, unsigned max[], unsigned *elements) {
+static bool compute_total_elements(unsigned base, unsigned dimensions, const unsigned max[], unsigned *elements) {
   assert(dimensions == 0 || max != NULL);
   assert(elements != NULL);
   *elements = 1;
@@ -22,7 +22,7 @@ static bool compute_total_elements(unsigned base, unsigned dimensions, unsigned 
   return true;
 }
 
-static bool init_array_size(struct array_size * p, unsigned base, unsigned dimensions, unsigned max[]) {
+static bool init_array_size(struct array_size * p, unsigned base, unsigned dimensions, const unsigned max[]) {
   assert(p != NULL);
 
   if (dimensions < 1 || dimensions > MAX_DIMENSIONS)
@@ -65,7 +65,7 @@ static bool compute_element_offset(const struct array_size * p, unsigned dimensi
   return true;
 }
 
-struct numeric_array * new_numeric_array(unsigned base, unsigned dimensions, unsigned max[]) {
+struct numeric_array * new_numeric_array(unsigned base, unsigned dimensions, const unsigned max[]) {
   struct array_size size;
   if (!init_array_size(&size, base, dimensions, max))
     return NULL;
@@ -90,7 +90,7 @@ bool compute_numeric_element(struct numeric_array * p, unsigned dimensions, cons
   return false;
 }
 
-struct string_array * new_string_array(unsigned base, unsigned dimensions, unsigned max[]) {
+struct string_array * new_string_array(unsigned base, unsigned dimensions, const unsigned max[]) {
   struct array_size size;
   if (!init_array_size(&size, base, dimensions, max))
     return NULL;

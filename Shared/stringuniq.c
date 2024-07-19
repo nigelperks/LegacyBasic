@@ -125,7 +125,7 @@ static void test_insert_node(CuTest* tc) {
   CuAssertStrEquals(tc, "jolly", j->s);
   CuAssertPtrEquals(tc, NULL, j->left);
   CuAssertPtrEquals(tc, NULL, j->right);
-  
+
   // clean up
   delete_tree(n);
 }

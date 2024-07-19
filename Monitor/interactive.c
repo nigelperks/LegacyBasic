@@ -173,7 +173,7 @@ static void command(VM* vm, int cmd, char* line, bool *quit) {
     case CMD_NEW:
       if (check_eol(line)) {
         vm_new_program(vm);
-        vm_new_environment(vm);
+        vm_clear_names(vm);
       }
       break;
     case CMD_LIST: {
@@ -202,7 +202,7 @@ static void command(VM* vm, int cmd, char* line, bool *quit) {
       break;
     }
     case CMD_RUN:
-      vm_clear_environment(vm);
+      vm_clear_values(vm);
       trap_interrupt();
       run_program(vm);
       untrap_interrupt();
