@@ -20,7 +20,7 @@ const char* symbol_kind(int kind);
 
 typedef unsigned short SYMID;
 
-typedef struct {
+typedef struct symbol {
   char* name;
   SYMID id;
   char kind;
@@ -37,12 +37,15 @@ typedef struct {
       short opcode;
     } builtin;
   } val;
+  struct symbol * next;
 } SYMBOL;
 
+#define SYMBOL_HASH_SIZE (293)
+
 // I want a particular symbol's address (SYMBOL* value) to be unchanged.
-// So any reallocatable structure contains SYMBOL*, not SYMBOL.
-// Initially use linear array and linear search.
+// So the reallocatable array contains SYMBOL*, not SYMBOL.
 typedef struct {
+  SYMBOL* hash[SYMBOL_HASH_SIZE];
   SYMBOL* *psym;
   unsigned allocated;
   unsigned used;

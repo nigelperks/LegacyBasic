@@ -6,6 +6,7 @@
 #include "symbol.h"
 #include "utils.h"
 #include "os.h"
+#include "hash.h"
 
 const char* symbol_kind(int kind) {
   switch (kind) {
@@ -38,6 +39,9 @@ void clear_symbol_table_names(SYMTAB* st) {
   }
   st->used = 0;
   st->next_id = 0;
+
+  for (unsigned h = 0; h < SYMBOL_HASH_SIZE; h++)
+    st->hash[h] = NULL;
 }
 
 static void undefine_value(SYMBOL*);
@@ -102,8 +106,8 @@ static bool match_paren(int kind, bool paren) {
 }
 
 SYMBOL* sym_lookup(SYMTAB* st, const char* name, bool paren) {
-  for (unsigned i = 0; i < st->used; i++) {
-    SYMBOL* sym = st->psym[i];
+  unsigned h = hashpjw_upper(name) % SYMBOL_HASH_SIZE;
+  for (SYMBOL* sym = st->hash[h]; sym; sym = sym->next) {
     if (match_paren(sym->kind, paren) && STRICMP(sym->name, name) == 0)
       return sym;
   }
@@ -111,18 +115,25 @@ SYMBOL* sym_lookup(SYMTAB* st, const char* name, bool paren) {
 }
 
 SYMBOL* sym_insert(SYMTAB* st, const char* name, int kind, int type) {
+  SYMBOL* sym = ecalloc(1, sizeof *sym);
+  sym->name = estrdup(name);
+  sym->id = st->next_id++;
+  sym->kind = kind;
+  sym->type = type;
+  sym->defined = false;
+
+  unsigned h = hashpjw_upper(name) % SYMBOL_HASH_SIZE;
+  sym->next = st->hash[h];
+  st->hash[h] = sym;
+
   assert(st->used <= st->allocated);
   if (st->used == st->allocated) {
     st->allocated = st->allocated ? 2 * st->allocated : 64;
     st->psym = erealloc(st->psym, st->allocated * sizeof st->psym[0]);
   }
   assert(st->used < st->allocated);
-  SYMBOL* sym = st->psym[st->used++] = ecalloc(1, sizeof *sym);
-  sym->name = estrdup(name);
-  sym->id = st->next_id++;
-  sym->kind = kind;
-  sym->type = type;
-  sym->defined = false;
+  st->psym[st->used++] = sym;
+
   return sym;
 }
 
