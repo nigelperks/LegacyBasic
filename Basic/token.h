@@ -47,11 +47,14 @@ enum {
   TOK_TO,
 };
 
-typedef struct {
+typedef struct keyword {
   char* name;
   unsigned short len;
   int token;
 } KEYWORD;
+
+void init_keywords(void);
+void deinit_keywords(void);
 
 int identifier_token(const char*);
 const KEYWORD* keyword_prefix(const char* string);

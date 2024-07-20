@@ -7,6 +7,8 @@
 #include <assert.h>
 #include "token.h"
 #include "os.h"
+#include "hash.h"
+#include "utils.h"
 
 const KEYWORD keywords[] = {
   { "AND", 3, TOK_AND },
@@ -23,8 +25,8 @@ const KEYWORD keywords[] = {
   { "IF", 2, TOK_IF },
   { "INPUT", 5, TOK_INPUT },
   { "LET", 3, TOK_LET },
-  { "NEXT", 4, TOK_NEXT },
   { "LINE", 4, TOK_LINE },
+  { "NEXT", 4, TOK_NEXT },
   { "NOT", 3, TOK_NOT },
   { "ON", 2, TOK_ON },
   { "OR", 2, TOK_OR },
@@ -42,22 +44,73 @@ const KEYWORD keywords[] = {
   { NULL, 0, TOK_NONE }
 };
 
-int identifier_token(const char* s) {
+#define KEYWORD_HASH_SIZE (79)
+
+struct keyword_node {
+  KEYWORD kw;
+  struct keyword_node * next;
+};
+
+struct {
+  struct keyword_node* kw[KEYWORD_HASH_SIZE];
+} keyword_hash;
+
+void init_keywords(void) {
+  int token = keywords[0].token - 1;
+
   for (const KEYWORD* p = keywords; p->name; p++) {
-    if (STRICMP(p->name, s) == 0)
-      return p->token;
+    if (p->token != token + 1)
+      fatal("internal error: keyword tokens not consecutive: %s\n", p->name);
+    token++;
+
+    unsigned h = hashpjw_upper(p->name) % KEYWORD_HASH_SIZE;
+    struct keyword_node * node = emalloc(sizeof *node);
+    node->kw = *p;
+    node->next = keyword_hash.kw[h];
+    keyword_hash.kw[h] = node;
+  }
+
+#if 0
+  // report hash table statistics
+  unsigned used_slots = 0;
+  unsigned max_nodes = 0;
+  for (unsigned h = 0; h < KEYWORD_HASH_SIZE; h++) {
+    if (keyword_hash.kw[h]) {
+      used_slots++;
+      unsigned count = 0;
+      for (struct keyword_node * n = keyword_hash.kw[h]; n; n = n->next)
+        count++;
+      if (count > max_nodes)
+        max_nodes = count;
+    }
+  }
+  printf("-- used slots %u, max nodes in a slot %u\n", used_slots, max_nodes);
+#endif
+}
+
+void deinit_keywords(void) {
+  for (unsigned h = 0; h < KEYWORD_HASH_SIZE; h++) {
+    struct keyword_node * next;
+    for (struct keyword_node * p = keyword_hash.kw[h]; p; p = next) {
+      next = p->next;
+      efree(p);
+    }
+  }
+}
+
+int identifier_token(const char* s) {
+  unsigned h = hashpjw_upper(s) % KEYWORD_HASH_SIZE;
+
+  for (const struct keyword_node * p = keyword_hash.kw[h]; p; p = p->next) {
+    if (STRICMP(p->kw.name, s) == 0)
+      return p->kw.token;
   }
 
   return TOK_ID;
 }
 
 const char* keyword_name(int t) {
-  for (const KEYWORD* p = keywords; p->name; p++) {
-    if (p->token == t)
-      return p->name;
-  }
-
-  return NULL;
+  return (t >= TOK_AND && t <= TOK_TO) ? keywords[t - TOK_AND].name : NULL;
 }
 
 const KEYWORD* keyword_prefix(const char* s) {

@@ -61,9 +61,12 @@ int main(int argc, char* argv[]) {
   if (!opt.quiet)
     print_version();
 
+  init_keywords();
+
 #ifdef UNIT_TEST
   if (opt.mode == TEST_MODE) {
     int rc = unit_tests();
+    deinit_keywords();
     report_memory();
     exit(rc);
   }
@@ -76,6 +79,8 @@ int main(int argc, char* argv[]) {
   }
   else
     process_file(&opt);
+
+  deinit_keywords();
 
   if (opt.report_memory)
     report_memory();
