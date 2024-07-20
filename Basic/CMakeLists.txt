@@ -4,12 +4,12 @@ add_library(basic
   builtin.c
   def.c
   emit.c
-  env.c
+  init.c
   lexer.c
-  paren.c
   parse.c
   run.c
   source.c
+  symbol.c
   token.c
 )
 if(UNIT_TESTS)
