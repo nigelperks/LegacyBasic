@@ -20,6 +20,7 @@ static const unsigned PAGE = 24;
 enum command_tokens {
   CMD_NONE,
   CMD_BYE,
+  CMD_CONT,
   CMD_HELP,
   CMD_LIST,
   CMD_LOAD,
@@ -34,6 +35,7 @@ static const struct command {
   short cmd;
 } commands[] = {
   { "BYE", 3, CMD_BYE },
+  { "CONT", 4, CMD_CONT },
   { "HELP", 4, CMD_HELP },
   { "LIST", 4, CMD_LIST },
   { "LOAD", 4, CMD_LOAD },
@@ -53,6 +55,7 @@ static int find_command(const char* cmd, unsigned len) {
 
 static void help(void) {
   puts("BYE                       quit to operating system");
+  puts("CONT                      continue program after STOP or break");
   puts("HELP                      show this help");
   puts("LIST [[start]-[end]][P]   list current file");
   puts("LOAD \"program.bas\"        load source from file");
@@ -166,6 +169,10 @@ static void command(VM* vm, int cmd, char* line, bool *quit) {
     case CMD_BYE:
       if (check_eol(line))
         *quit = true;
+      break;
+    case CMD_CONT:
+      if(!vm_continue(vm))
+        error("Cannot continue");
       break;
     case CMD_HELP:
       help();

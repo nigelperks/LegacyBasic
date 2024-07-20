@@ -24,6 +24,8 @@ const SOURCE* vm_stored_source(vm);
 void run_program(VM*);
 void run_immediate(VM*, const char* line);
 
+bool vm_continue(VM*);
+
 // Maintain an environment of variables and functions.
 void vm_clear_names(VM*);  // go back to builtin names only
 void vm_clear_values(VM*);  // clear values but keep names list so code remains valid

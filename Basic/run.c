@@ -69,7 +69,8 @@ struct vm {
   double stack[MAX_NUM_STACK];
   char* strstack[MAX_STR_STACK];
   CODE_STATE retstack[MAX_RETURN_STACK];
-  bool stopped;
+  bool stopped; // set false before running code, set true by STOP
+  CODE_STATE stopped_program;
   unsigned sp;
   unsigned ssp;
   unsigned rsp;
@@ -158,7 +159,7 @@ static void reset_control_state(VM* vm) {
   clear_string_stack(vm);
   clear_code_state(&vm->code_state);
   clear_code_state(&vm->fn.code_state);
-  vm->stopped = false;
+  clear_code_state(&vm->stopped_program);
   vm->sp = 0;
   vm->ssp = 0;
   vm->rsp = 0;
@@ -291,6 +292,8 @@ void run_immediate(VM* vm, const char* line) {
     vm->immediate_code.source = source;
     vm->immediate_data = 0;
     vm->code_state.code = &vm->immediate_code;
+    vm->code_state.source_line = 0;
+    vm->code_state.pc = 0;
     run(vm);
     if (immediate_state(vm))
       reset_control_state(vm);
@@ -321,11 +324,9 @@ static bool immediate_state(VM* vm) {
 static void execute(VM*);
 static void report_for_in_progress(VM*);
 
-// Run the currently selected code from the beginning.
+// Run the currently selected code from current PC.
 static void run(VM* vm) {
   assert(vm->code_state.code != NULL);
-  vm->code_state.source_line = 0;
-  vm->code_state.pc = 0;
 
   vm->stopped = false;
   trap_interrupt();
@@ -346,6 +347,30 @@ static void run(VM* vm) {
     if (vm->strict_for && vm->for_sp != 0)
       report_for_in_progress(vm);
   }
+
+  // On STOP in program, or interrupted program, store program stopped state for continuing.
+  // On normal program end, clear program stopped state.
+  // After running immediate code, leave program stopped state alone.
+  if (vm->code_state.code == &vm->stored_program) {
+    if (vm->stopped || interrupted)
+      vm->stopped_program = vm->code_state;
+    else
+      clear_code_state(&vm->stopped_program);
+  }
+}
+
+bool vm_continue(VM* vm) {
+  if (vm->stopped_program.code == NULL)
+    return false;
+  if (vm->stopped_program.code->bcode == NULL)
+    return false;
+  vm->code_state = vm->stopped_program;
+  // If continuing from STOP, continue from PC after STOP.
+  // If continuing from interrupt, continue from where we are (effects not guaranteed).
+  if (vm->stopped_program.code->bcode->inst[vm->stopped_program.pc].op == B_STOP)
+    vm->code_state.pc++;
+  run(vm);
+  return true;
 }
 
 static void report_for_in_progress(VM* vm) {

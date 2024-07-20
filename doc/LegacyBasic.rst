@@ -68,6 +68,13 @@ BYE
 ^^^
 Return to the operating system.
 
+CONT
+^^^^
+Continue running the program after it was stopped with STOP or break (CTRL-C).
+This allows variable values to be inspected and changed
+before resuming the program.
+If the program source is edited, however, it cannot be continued.
+
 HELP
 ^^^^
 List these immediate commands with a brief explanation.
