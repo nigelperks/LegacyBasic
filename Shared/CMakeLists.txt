@@ -1,4 +1,5 @@
 add_library(shared
+  hash.c
   interrupt.c
   os.c
   stringlist.c

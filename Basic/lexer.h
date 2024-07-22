@@ -24,6 +24,7 @@ LEX* new_lex(const char* name, bool recognise_keyword_prefixes);
 void delete_lex(LEX*);
 
 int lex_line(LEX*, unsigned lineno, const char* text);
+int lex_refresh(LEX*, const char* text);
 
 int lex_peek(LEX*);
 

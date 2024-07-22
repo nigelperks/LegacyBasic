@@ -209,6 +209,7 @@ CuSuite* stringlist_test_suite(void);
 CuSuite* stringuniq_test_suite(void);
 CuSuite* source_test_suite(void);
 CuSuite* lexer_test_suite(void);
+CuSuite* linemap_test_suite(void);
 CuSuite* bcode_test_suite(void);
 CuSuite* emit_test_suite(void);
 CuSuite* arrays_test_suite(void);
@@ -225,6 +226,7 @@ static int unit_tests(void) {
   CuSuiteAddSuite(suite, stringuniq_test_suite());
   CuSuiteAddSuite(suite, source_test_suite());
   CuSuiteAddSuite(suite, lexer_test_suite());
+  CuSuiteAddSuite(suite, linemap_test_suite());
   CuSuiteAddSuite(suite, bcode_test_suite());
   CuSuiteAddSuite(suite, emit_test_suite());
   CuSuiteAddSuite(suite, arrays_test_suite());

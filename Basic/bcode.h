@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include "source.h"
+#include "linemap.h"
 
 enum {
   // placeholder
@@ -168,8 +169,4 @@ BINST* bcode_next(BCODE*, unsigned op);
 
 BCODE* bcode_copy_def(const BCODE*, unsigned start);
 
-typedef struct bcode_index BCODE_INDEX;
-
-BCODE_INDEX* bcode_index(const BCODE*, const SOURCE*);
-void delete_bcode_index(BCODE_INDEX*);
-bool bcode_find_indexed_basic_line(const BCODE_INDEX*, unsigned basic_line, unsigned *bcode_pos);
+LINE_MAP* bcode_index(const BCODE*, const SOURCE*);

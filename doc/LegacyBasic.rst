@@ -68,6 +68,11 @@ BYE
 ^^^
 Return to the operating system.
 
+COMPILE
+^^^^^^^
+Compile the current Basic program into B-code without running it,
+to check for syntax and other compilation errors.
+
 CONT
 ^^^^
 Continue running the program after it was stopped with STOP or break (CTRL-C).
@@ -104,6 +109,21 @@ Example: ``LOAD "prog.bas"``
 NEW
 ^^^
 Delete the current source file from memory and begin a new program. This does not affect disk files.
+
+RENUM
+^^^^^
+Or ``RENUMBER``.
+
+Syntax: ``RENUM`` [new[,old[,inc]]]
+
+Renumber the lines of the current program.
+By default, renumber all lines to new numbers starting from 10, increasing by 10.
+If any or all of the optional parameters are given,
+renumber from line ``old``, starting new numbers from ``new``, increasing by ``inc``.
+
+``RENUM`` updates the line numbers used in statements, for example ``GOTO`` and ``GOSUB``.
+Syntax errors might interfere with updating line numbers in statements,
+so it is recommended to ``COMPILE`` before ``RENUM``.
 
 RUN
 ^^^

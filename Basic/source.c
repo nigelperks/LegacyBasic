@@ -61,6 +61,12 @@ unsigned source_linenum(const SOURCE* src, unsigned line) {
   return src->lines[line].num;
 }
 
+void set_source_linenum(SOURCE* src, unsigned line, unsigned basic_lineno) {
+  assert(src != NULL);
+  check_line(src, line);
+  src->lines[line].num = basic_lineno;
+}
+
 void print_source_line(const SOURCE* source, unsigned line, FILE* fp) {
   if (source != NULL && line < source_lines(source))
     fprintf(fp, "%u %s", source_linenum(source, line), source_text(source, line));
@@ -265,6 +271,29 @@ bool find_source_linenum(const SOURCE* source, unsigned num, unsigned *index) {
   }
   return false;
 }
+
+bool source_replace(SOURCE* source, unsigned line, unsigned pos, const char* from, const char* to) {
+  assert(source != NULL && from != NULL && to != NULL);
+  if (line < source->used) {
+    struct source_line * sl = source->lines + line;
+    if (sl->text) {
+      unsigned line_len = strlen(sl->text);
+      unsigned from_len = strlen(from);
+      unsigned to_len = strlen(to);
+      if (pos <= line_len && line_len - pos >= from_len && strncmp(sl->text + pos, from, from_len) == 0) {
+        char* text = emalloc(line_len - from_len + to_len + 1);
+        strncpy(text, sl->text, pos);
+        strncpy(text + pos, to, to_len);
+        strcpy(text + pos + to_len, sl->text + pos + from_len);
+        efree(sl->text);
+        sl->text = text;
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 
 #ifdef UNIT_TEST
 
@@ -514,6 +543,88 @@ static void test_wrap(CuTest* tc) {
   delete_source(p);
 }
 
+static void test_source_replace(CuTest* tc) {
+  SOURCE source;
+  bool succ;
+
+  // line index out of range (source empty)
+  source.name = NULL;
+  source.lines = NULL;
+  source.allocated = 0;
+  source.used = 0;
+  succ = source_replace(&source, 0, 0, "", "");
+  CuAssertIntEquals(tc, false, succ);
+
+  // line index out of range (source not empty)
+  source.lines = ecalloc(1, sizeof source.lines[0]);
+  source.allocated = 1;
+  source.used = 1;
+  succ = source_replace(&source, 1, 0, "", "");
+  CuAssertIntEquals(tc, false, succ);
+
+  // line text is NULL
+  succ = source_replace(&source, 0, 0, "", "");
+  CuAssertIntEquals(tc, false, succ);
+
+  // line text is empty
+  source.lines[0].num = 10;
+  source.lines[0].text = estrdup("");
+  succ = source_replace(&source, 0, 0, "", "");
+  CuAssertIntEquals(tc, true, succ);
+  CuAssertStrEquals(tc, "", source.lines[0].text);
+  succ = source_replace(&source, 0, 0, "Fred", "Bill");
+  CuAssertIntEquals(tc, false, succ);
+
+  // line position out of range
+  efree(source.lines[0].text);
+  source.lines[0].text = estrdup("My name is Fred!");
+  assert(strlen(source.lines[0].text) == 16);
+  succ = source_replace(&source, 0, 16, "Fred", "Bill");
+  CuAssertIntEquals(tc, false, succ);
+
+  // word overspills line
+  succ = source_replace(&source, 0, 11, "Freddy", "Bill");
+  CuAssertIntEquals(tc, false, succ);
+
+  // source word does not match
+  succ = source_replace(&source, 0, 11, "Frod", "Bill");
+  CuAssertIntEquals(tc, false, succ);
+
+  // replacement text has same length
+  succ = source_replace(&source, 0, 11, "Fred", "Bill");
+  CuAssertIntEquals(tc, true, succ);
+  CuAssertStrEquals(tc, "My name is Bill!", source.lines[0].text);
+
+  // replacement text is shorter
+  succ = source_replace(&source, 0, 11, "Bill", "Ad");
+  CuAssertIntEquals(tc, true, succ);
+  CuAssertStrEquals(tc, "My name is Ad!", source.lines[0].text);
+
+  // replacement text is longer
+  succ = source_replace(&source, 0, 11, "Ad", "Georgina");
+  CuAssertIntEquals(tc, true, succ);
+  CuAssertStrEquals(tc, "My name is Georgina!", source.lines[0].text);
+
+  // replacement text is empty
+  succ = source_replace(&source, 0, 11, "Georgina", "");
+  CuAssertIntEquals(tc, true, succ);
+  CuAssertStrEquals(tc, "My name is !", source.lines[0].text);
+
+  // source text is empty
+  succ = source_replace(&source, 0, 11, "", "Lemonstalk");
+  CuAssertIntEquals(tc, true, succ);
+  CuAssertStrEquals(tc, "My name is Lemonstalk!", source.lines[0].text);
+
+  // append to line
+  succ = source_replace(&source, 0, strlen(source.lines[0].text), "", " Yes!");
+  CuAssertIntEquals(tc, true, succ);
+  CuAssertStrEquals(tc, "My name is Lemonstalk! Yes!", source.lines[0].text);
+
+  // Clean up
+  efree(source.lines[0].text);
+  efree(source.lines);
+}
+
 CuSuite* source_test_suite(void) {
   CuSuite* suite = CuSuiteNew();
   SUITE_ADD_TEST(suite, test_new);
@@ -527,6 +638,7 @@ CuSuite* source_test_suite(void) {
   SUITE_ADD_TEST(suite, test_get_line);
   SUITE_ADD_TEST(suite, test_load_string);
   SUITE_ADD_TEST(suite, test_wrap);
+  SUITE_ADD_TEST(suite, test_source_replace);
   return suite;
 }
 

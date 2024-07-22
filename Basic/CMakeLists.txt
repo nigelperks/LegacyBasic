@@ -6,6 +6,7 @@ add_library(basic
   emit.c
   init.c
   lexer.c
+  linemap.c
   parse.c
   run.c
   source.c

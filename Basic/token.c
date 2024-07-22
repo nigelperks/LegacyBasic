@@ -10,6 +10,8 @@
 #include "hash.h"
 #include "utils.h"
 
+#define REPORT_HASH_TABLE 0
+
 const KEYWORD keywords[] = {
   { "AND", 3, TOK_AND },
   { "CLEAR", 5, TOK_CLEAR },
@@ -70,8 +72,7 @@ void init_keywords(void) {
     keyword_hash.kw[h] = node;
   }
 
-#if 0
-  // report hash table statistics
+#if REPORT_HASH_TABLE
   unsigned used_slots = 0;
   unsigned max_nodes = 0;
   for (unsigned h = 0; h < KEYWORD_HASH_SIZE; h++) {

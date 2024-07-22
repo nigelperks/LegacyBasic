@@ -18,9 +18,11 @@ void vm_enter_source_line(VM*, unsigned num, const char* text);
 bool vm_save_source(VM*, const char* name);
 bool vm_load_source(VM*, const char* name);
 
-const SOURCE* vm_stored_source(vm);
+SOURCE* vm_stored_source(vm);
 
 // Compile and run code.
+void vm_compile(VM*);
+
 void run_program(VM*);
 void run_immediate(VM*, const char* line);
 
@@ -29,3 +31,6 @@ bool vm_continue(VM*);
 // Maintain an environment of variables and functions.
 void vm_clear_names(VM*);  // go back to builtin names only
 void vm_clear_values(VM*);  // clear values but keep names list so code remains valid
+
+// Flags
+bool vm_keywords_anywhere(const VM*);

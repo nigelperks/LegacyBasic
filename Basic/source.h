@@ -37,3 +37,6 @@ unsigned source_lines(const SOURCE*);
 unsigned source_linenum(const SOURCE*, unsigned line);
 const char* source_text(const SOURCE*, unsigned line);
 void print_source_line(const SOURCE*, unsigned line, FILE*);
+
+void set_source_linenum(SOURCE*, unsigned line, unsigned basic_lineno);
+bool source_replace(SOURCE*, unsigned line, unsigned pos, const char* from, const char* to);

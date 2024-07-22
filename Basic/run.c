@@ -34,12 +34,12 @@
 typedef struct {
   SOURCE* source;
   BCODE* bcode;
-  BCODE_INDEX* index;
+  LINE_MAP* index; // map Basic line number to bcode index
 } CODE;
 
 static void deinit_code(CODE* code) {
   assert(code != NULL);
-  delete_bcode_index(code->index);
+  delete_line_map(code->index);
   delete_bcode(code->bcode);
   delete_source(code->source);
   code->source = NULL;
@@ -138,6 +138,10 @@ void delete_vm(VM* vm) {
   }
 }
 
+bool vm_keywords_anywhere(const VM* vm) {
+  return vm->keywords_anywhere;
+}
+
 void vm_clear_names(VM* vm) {
   clear_symbol_table_names(vm->st);
   init_builtins(vm->st);
@@ -175,7 +179,7 @@ static void reset_control_state(VM* vm) {
 // Do not clear environment.
 static void stored_program_changed(VM* vm) {
   if (vm->stored_program.index) {
-    delete_bcode_index(vm->stored_program.index);
+    delete_line_map(vm->stored_program.index);
     vm->stored_program.index = NULL;
   }
   if (vm->stored_program.bcode) {
@@ -201,6 +205,10 @@ static bool ensure_program_compiled(VM* vm) {
   }
 
   return true;
+}
+
+void vm_compile(VM* vm) {
+  ensure_program_compiled(vm);
 }
 
 void vm_new_program(VM* vm) {
@@ -250,7 +258,7 @@ bool vm_load_source(VM* vm, const char* name) {
   return true;
 }
 
-const SOURCE* vm_stored_source(VM* vm) {
+SOURCE* vm_stored_source(VM* vm) {
   return vm->stored_program.source;
 }
 
@@ -1428,7 +1436,7 @@ static char* convert(const char* s, double *val) {
 static unsigned find_basic_line(VM* vm, unsigned basic_line) {
   unsigned bcode_line;
   if (vm->stored_program.index == NULL ||
-     !bcode_find_indexed_basic_line(vm->stored_program.index, basic_line, &bcode_line))
+     !lookup_line_mapping(vm->stored_program.index, basic_line, &bcode_line))
     run_error(vm, "Line not found: %u\n", basic_line);
   return bcode_line;
 }

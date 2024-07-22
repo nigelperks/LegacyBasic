@@ -220,61 +220,21 @@ static unsigned line_count(const BCODE* bc) {
   return n;
 }
 
-struct line_node {
-  unsigned basic_line;
-  unsigned bcode_pos;
-  struct line_node * next;
-};
-
-#define BCODE_HASH_SIZE (397)
-
-struct bcode_index {
-  struct line_node * hash[BCODE_HASH_SIZE];
-  struct line_node * nodes;
-};
-
 // Build index of Basic line numbers for faster lookup
-BCODE_INDEX* bcode_index(const BCODE* bc, const SOURCE* source) {
+LINE_MAP* bcode_index(const BCODE* bc, const SOURCE* source) {
   assert(bc != NULL);
   assert(source != NULL);
-  unsigned lines = line_count(bc);
-  BCODE_INDEX* idx = ecalloc(1, sizeof *idx); // initialise hash table node pointers to null
-  if (lines == 0)
-    return idx;
-  idx->nodes = emalloc(lines * sizeof idx->nodes[0]);
-  struct line_node * node = idx->nodes;
+
+  LINE_MAP* idx = new_line_map(line_count(bc));
+
   for (unsigned i = 0; i < bc->used; i++) {
     if (bc->inst[i].op == B_SOURCE_LINE) {
-      node->basic_line = source_linenum(source, bc->inst[i].u.source_line);
-      node->bcode_pos = i;
-      unsigned h = node->basic_line % BCODE_HASH_SIZE;
-      node->next = idx->hash[h];
-      idx->hash[h] = node;
-      node++;
+      unsigned basic_line = source_linenum(source, bc->inst[i].u.source_line);
+      insert_line_mapping(idx, basic_line, i);
     }
   }
-  assert(node == idx->nodes + lines);
+
   return idx;
-}
-
-void delete_bcode_index(BCODE_INDEX* idx) {
-  if (idx) {
-    efree(idx->nodes);
-    efree(idx);
-  }
-}
-
-bool bcode_find_indexed_basic_line(const BCODE_INDEX* idx, unsigned basic_line, unsigned *bcode_pos) {
-  assert(idx != NULL);
-  assert(bcode_pos != NULL);
-  unsigned h = basic_line % BCODE_HASH_SIZE;
-  for (const struct line_node * node = idx->hash[h]; node; node = node->next) {
-    if (node->basic_line == basic_line) {
-      *bcode_pos = node->bcode_pos;
-      return true;
-    }
-  }
-  return false;
 }
 
 #ifdef UNIT_TEST
@@ -361,7 +321,7 @@ static void test_bcode_copy_def(CuTest* tc) {
 static void test_bcode_index(CuTest* tc) {
   SOURCE* src = new_source(NULL);
   BCODE* bc = NULL;
-  BCODE_INDEX* idx = NULL;
+  LINE_MAP* idx = NULL;
   unsigned pos;
   bool found;
 
@@ -374,10 +334,9 @@ static void test_bcode_index(CuTest* tc) {
   bc = new_bcode();
   idx = bcode_index(bc, src);
   CuAssertPtrNotNull(tc, idx);
-  CuAssertPtrEquals(tc, NULL, idx->nodes);
-  found = bcode_find_indexed_basic_line(idx, 10, &pos);
+  found = lookup_line_mapping(idx, 10, &pos);
   CuAssertIntEquals(tc, false, found);
-  delete_bcode_index(idx);
+  delete_line_map(idx);
 
   // Compiled bcode
   emit_source_line(bc, B_SOURCE_LINE, 0);
@@ -392,26 +351,26 @@ static void test_bcode_index(CuTest* tc) {
   emit(bc, B_END);
   idx = bcode_index(bc, src);
 
-  found = bcode_find_indexed_basic_line(idx, 10, &pos);
+  found = lookup_line_mapping(idx, 10, &pos);
   CuAssertIntEquals(tc, true, found);
   CuAssertIntEquals(tc, 0, pos);
 
-  found = bcode_find_indexed_basic_line(idx, 20, &pos);
+  found = lookup_line_mapping(idx, 20, &pos);
   CuAssertIntEquals(tc, true, found);
   CuAssertIntEquals(tc, 3, pos);
 
-  found = bcode_find_indexed_basic_line(idx, 30, &pos);
+  found = lookup_line_mapping(idx, 30, &pos);
   CuAssertIntEquals(tc, true, found);
   CuAssertIntEquals(tc, 6, pos);
 
-  found = bcode_find_indexed_basic_line(idx, 40, &pos);
+  found = lookup_line_mapping(idx, 40, &pos);
   CuAssertIntEquals(tc, true, found);
   CuAssertIntEquals(tc, 7, pos);
 
-  found = bcode_find_indexed_basic_line(idx, 25, &pos);
+  found = lookup_line_mapping(idx, 25, &pos);
   CuAssertIntEquals(tc, false, found);
 
-  delete_bcode_index(idx);
+  delete_line_map(idx);
 
   // Clean up
   delete_bcode(bc);

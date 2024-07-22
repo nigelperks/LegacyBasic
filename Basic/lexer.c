@@ -38,6 +38,13 @@ int lex_line(LEX* lex, unsigned lineno, const char* text) {
   return lex_next(lex);
 }
 
+// Refresh source text and retokenise from current token position.
+int lex_refresh(LEX* lex, const char* text) {
+  lex->text = text;
+  lex->pos = lex->token_pos;
+  return lex_next(lex);
+}
+
 static void lex_error_va(LEX* lex, const char* fmt, va_list ap) {
   assert(lex != NULL);
   if (lex->name)
