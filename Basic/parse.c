@@ -172,6 +172,7 @@ static bool statement(PARSER* parser) {
     case TOK_RETURN: return_statement(parser); break;
     case TOK_STOP: stop_statement(parser); break;
     case TOK_ID: assignment(parser); break;
+    case '\n': case ':': break;
     default: parse_error(parser, "statement expected"); break;
   }
   if (lex_token(parser->lex) == TOK_ELSE)

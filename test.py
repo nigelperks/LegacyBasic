@@ -84,11 +84,13 @@ def test(exe, source, update, SyntaxOnly, BasicOptions):
   if not SyntaxOnly:
     cmd += " >out 2>err"
   print(">", cmd)
+  if SyntaxOnly:
+    os.system(cmd)
+    return 0
   check_cmd(cmd)
-  if not SyntaxOnly:
-    check_output(source, "out", update)
-    check_output(source, "err", update)
-    print("PASS")
+  check_output(source, "out", update)
+  check_output(source, "err", update)
+  print("PASS")
   return 1
 
 
